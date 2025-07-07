@@ -1,5 +1,5 @@
 #### Week 1 : Dataset Preparation 
-**Goal**: Prepare the Dataset, follow `DatasetPlan.md`
+**Goal**: Prepare the Dataset, follow `DatasetPrep.md`
 
 #### Week 2: Upgrade the NLU Model
 **Goal**: Replace the current `TransformerModel` with a powerful transformer and train it on the dataset.
