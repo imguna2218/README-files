@@ -1,0 +1,3424 @@
+Here are the files 
+C:\Users\DELL\Desktop\THE ENG>tree /f
+Folder PATH listing
+Volume serial number is 1202-FFDE
+C:.
+│   .gitignore
+│   Cargo.lock
+│   Cargo.toml
+│   commands.txt
+│   generate_data.py
+│   model.pt
+│   pyproject.toml
+│   README.md
+│   requirements.txt
+│   train.py
+│   training_history.json
+│
+├───config
+│       model_config.yaml
+│       training_config.yaml
+│
+├───data
+│   ├───raw
+│   │   └───processed
+│   │           eng_dataset.parquet
+│   │
+│   └───synthetic
+│           generate_data.py
+│
+├───logs
+│       eng.log
+│
+├───scripts
+│       convert_manual_data.py
+│       evaluate.py
+│       generate_data.py
+│       merge_data.py
+│       train.py
+│
+├───src
+│   │   executor.rs
+│   │   ir.rs
+│   │   lib.rs
+│   │
+│   ├───executor
+│   ├───memory
+│   │       feedback.py
+│   │       memory.py
+│   │
+│   ├───nlu
+│   │       model.py
+│   │       tokenizer.py
+│   │       trainer.py
+│   │
+│   ├───ui
+│   │       ui.py
+│   │
+│   └───utils
+│       │   data_augmentation.py
+│       │   logging.py
+│       │
+│       └───__pycache__
+│               logging.cpython-310.pyc
+│
+└───tests
+        test_executor.py
+        test_integration.py
+        test_nlu.py
+
+
+C:\Users\DELL\Desktop\THE ENG>
+
+congif/model_config.yaml 
+model:
+  name: t5-small
+  device: cpu
+  max_length: 128
+  num_beams: 5
+
+
+config/training_data.yaml 
+training:
+  epochs: 3
+  batch_size: 8
+  learning_rate: 2e-5
+  data_path: data/processed/final_data.parquet
+
+
+data/synthetic/generate_data.py
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+import pandas as pd
+import json
+import random
+import spacy
+import nltk
+from nltk.corpus import wordnet
+from src.utils.data_augmentation import augment_text
+import math
+from tqdm import tqdm  # Import tqdm for progress bar
+
+try:
+    nltk.data.find('wordnet')
+except LookupError:
+    nltk.download('wordnet')
+
+nlp = spacy.load("en_core_web_sm")
+
+TEMPLATES = {
+    "Add": [
+        "Add {0} and {1}",
+        "Sum {0} plus {1}",
+        "Calculate {0} + {1}",
+        "Total of {0} and {1}",
+        "Compute the summation of {0} with {1}",
+        "Perform addition on {0} and {1}",
+        "Find the aggregate of {0} and {1}",
+        "Combine {0} with {1} numerically",
+        "Evaluate {0} plus {1}",
+        "Determine the sum of {0} and {1}",
+        "Add together {0} and {1}",
+        "Compute {0} added to {1}",
+        "Get the total of {0} plus {1}",
+        "Sum up {0} and {1}",
+        "Calculate the addition of {0} with {1}"
+    ],
+    "Subtract": [
+        "Subtract {1} from {0}",
+        "Take {1} away from {0}",
+        "Calculate {0} minus {1}",
+        "Find the difference between {0} and {1}",
+        "Compute {0} subtracted by {1}",
+        "Determine {0} less {1}",
+        "Evaluate {0} - {1}",
+        "Get {0} minus {1}",
+        "Reduce {0} by {1}",
+        "Calculate the subtraction of {1} from {0}",
+        "Find {0} decreased by {1}",
+        "Compute the remainder of {0} after subtracting {1}",
+        "Take away {1} from {0}",
+        "Determine the result of {0} minus {1}",
+        "Subtract {1} out of {0}"
+    ],
+    "Multiply": [
+        "Multiply {0} by {1}",
+        "Calculate {0} times {1}",
+        "Find the product of {0} and {1}",
+        "Compute {0} multiplied by {1}",
+        "Determine {0} * {1}",
+        "Evaluate the product of {0} with {1}",
+        "Get {0} times {1}",
+        "Perform multiplication of {0} and {1}",
+        "Calculate {0} x {1}",
+        "Find the result of {0} multiplied by {1}",
+        "Compute the multiplication of {0} with {1}",
+        "Multiply together {0} and {1}",
+        "Get the product of {0} and {1}",
+        "Evaluate {0} multiplied with {1}",
+        "Determine the outcome of {0} times {1}"
+    ],
+    "Divide": [
+        "Divide {0} by {1}",
+        "Calculate {0} divided by {1}",
+        "Find the quotient of {0} and {1}",
+        "Compute {0} over {1}",
+        "Determine {0} / {1}",
+        "Evaluate the division of {0} by {1}",
+        "Get {0} divided by {1}",
+        "Perform division of {0} by {1}",
+        "Calculate the result of {0} over {1}",
+        "Find {0} split by {1}",
+        "Compute the quotient of {0} divided by {1}",
+        "Divide {0} into {1} parts",
+        "Evaluate {0} by {1}",
+        "Determine the division of {0} with {1}",
+        "Get the result of {0} divided by {1}"
+    ],
+    "Modulus": [
+        "Find the remainder of {0} divided by {1}",
+        "Calculate {0} mod {1}",
+        "Compute the modulus of {0} by {1}",
+        "Determine {0} % {1}",
+        "Get the remainder when {0} is divided by {1}",
+        "Evaluate the modulus of {0} with {1}",
+        "Find {0} modulo {1}",
+        "Calculate the rest of {0} divided by {1}",
+        "Compute {0} remainder {1}",
+        "Determine the leftover of {0} after division by {1}",
+        "Get {0} mod {1}",
+        "Find the modulus result of {0} by {1}",
+        "Calculate what remains of {0} after dividing by {1}",
+        "Evaluate {0} modulo {1}",
+        "Compute the remainder of {0} over {1}"
+    ],
+    "Power": [
+        "Raise {0} to the power of {1}",
+        "Calculate {0} to the {1}th power",
+        "Find {0} raised to {1}",
+        "Compute {0} ** {1}",
+        "Determine {0} to the power {1}",
+        "Evaluate {0} raised to the power of {1}",
+        "Get {0} to the {1} power",
+        "Calculate the result of {0} to the power {1}",
+        "Find {0} exponentiated by {1}",
+        "Compute {0} powered by {1}",
+        "Determine the power of {0} with exponent {1}",
+        "Raise {0} to {1}",
+        "Evaluate {0} ^ {1}",
+        "Compute {0} to the power of {1}",
+        "Get the result of {0} raised to {1}"
+    ],
+    "SquareRoot": [
+        "Calculate the square root of {0}",
+        "Find the square root of {0}",
+        "Compute the root of {0}",
+        "Determine the square root value of {0}",
+        "Get the square root of {0}",
+        "Evaluate the sqrt of {0}",
+        "Find the value of square root {0}",
+        "Compute sqrt({0})",
+        "Calculate root of {0}",
+        "Determine the principal square root of {0}",
+        "Get square root of {0}",
+        "Evaluate the square root for {0}",
+        "Find the sqrt value of {0}",
+        "Compute the square root for {0}",
+        "Calculate the square root value of {0}"
+    ],
+    "Factorial": [
+        "Calculate factorial of {0}",
+        "Find {0} factorial",
+        "Compute the factorial of {0}",
+        "Determine the product of numbers up to {0}",
+        "Evaluate factorial for {0}",
+        "Calculate {0}!",
+        "Find the factorial value of {0}",
+        "Compute {0} factorial",
+        "Determine {0}!",
+        "Evaluate the product of integers up to {0}",
+        "Get the factorial of {0}",
+        "Calculate the result of {0} factorial",
+        "Find the product of all numbers up to {0}",
+        "Compute factorial({0})",
+        "Determine the factorial result of {0}"
+    ],
+    "GCD": [
+        "Find the greatest common divisor of {0} and {1}",
+        "Calculate the GCD of {0} and {1}",
+        "Compute the greatest common factor of {0} and {1}",
+        "Determine the highest common divisor of {0} and {1}",
+        "Get the GCD of {0} and {1}",
+        "Evaluate the greatest common divisor for {0} and {1}",
+        "Find the largest common factor of {0} and {1}",
+        "Compute GCD({0}, {1})",
+        "Calculate the highest common factor of {0} and {1}",
+        "Determine the GCD value of {0} and {1}",
+        "Get the greatest divisor common to {0} and {1}",
+        "Find the common divisor of {0} and {1}",
+        "Compute the greatest common denominator of {0} and {1}",
+        "Calculate the GCD for {0} and {1}",
+        "Determine the largest divisor shared by {0} and {1}"
+    ],
+    "LCM": [
+        "Find the least common multiple of {0} and {1}",
+        "Calculate the LCM of {0} and {1}",
+        "Compute the smallest common multiple of {0} and {1}",
+        "Determine the lowest common multiple of {0} and {1}",
+        "Get the LCM of {0} and {1}",
+        "Evaluate the least common multiple for {0} and {1}",
+        "Find the smallest multiple common to {0} and {1}",
+        "Compute LCM({0}, {1})",
+        "Calculate the lowest common multiple of {0} and {1}",
+        "Determine the LCM value of {0} and {1}",
+        "Get the least multiple shared by {0} and {1}",
+        "Find the common multiple of {0} and {1}",
+        "Compute the smallest common denominator of {0} and {1}",
+        "Calculate the LCM for {0} and {1}",
+        "Determine the smallest multiple shared by {0} and {1}"
+    ],
+    "Max": [
+        "Find max of {0} and {1}",
+        "Get the larger of {0} and {1}",
+        "What’s the maximum of {0} and {1}",
+        "Determine the greatest value between {0} and {1}",
+        "Identify the larger number of {0} and {1}",
+        "Select the maximum of {0} and {1}",
+        "Compute the highest of {0} and {1}",
+        "Find the biggest number between {0} and {1}",
+        "Calculate the maximum value of {0} and {1}",
+        "Get the greatest of {0} and {1}",
+        "Determine the larger value of {0} and {1}",
+        "Find the highest number of {0} and {1}",
+        "Compute max({0}, {1})",
+        "Evaluate the maximum of {0} and {1}",
+        "Select the bigger of {0} and {1}"
+    ],
+    "Min": [
+        "Find min of {0} and {1}",
+        "Get the smaller of {0} and {1}",
+        "What’s the minimum of {0} and {1}",
+        "Determine the smallest value between {0} and {1}",
+        "Identify the smaller number of {0} and {1}",
+        "Select the minimum of {0} and {1}",
+        "Compute the lowest of {0} and {1}",
+        "Find the smallest number between {0} and {1}",
+        "Calculate the minimum value of {0} and {1}",
+        "Get the least of {0} and {1}",
+        "Determine the smaller value of {0} and {1}",
+        "Find the lowest number of {0} and {1}",
+        "Compute min({0}, {1})",
+        "Evaluate the minimum of {0} and {1}",
+        "Select the lesser of {0} and {1}"
+    ],
+    "Mean": [
+        "Calculate the average of {0}",
+        "Find the mean of {0}",
+        "Compute the average value of {0}",
+        "Determine the mean value of {0}",
+        "Get the average of {0}",
+        "Evaluate the mean of {0}",
+        "Find the arithmetic mean of {0}",
+        "Compute mean({0})",
+        "Calculate the central value of {0}",
+        "Determine the average of the list {0}",
+        "Get the mean value of {0}",
+        "Find the average for {0}",
+        "Compute the average of numbers in {0}",
+        "Evaluate the central mean of {0}",
+        "Calculate the mean for {0}"
+    ],
+    "Median": [
+        "Calculate the median of {0}",
+        "Find the median of {0}",
+        "Compute the middle value of {0}",
+        "Determine the median value of {0}",
+        "Get the median of {0}",
+        "Evaluate the median for {0}",
+        "Find the central value of {0}",
+        "Compute median({0})",
+        "Calculate the middle number of {0}",
+        "Determine the median of the list {0}",
+        "Get the central value of {0}",
+        "Find the median for {0}",
+        "Compute the median of numbers in {0}",
+        "Evaluate the middle value of {0}",
+        "Calculate the median for {0}"
+    ],
+    "StandardDeviation": [
+        "Calculate the standard deviation of {0}",
+        "Find the standard deviation of {0}",
+        "Compute the std dev of {0}",
+        "Determine the standard deviation value of {0}",
+        "Get the standard deviation of {0}",
+        "Evaluate the std dev for {0}",
+        "Find the deviation of {0}",
+        "Compute std_dev({0})",
+        "Calculate the spread of {0}",
+        "Determine the standard deviation of the list {0}",
+        "Get the std dev value of {0}",
+        "Find the standard deviation for {0}",
+        "Compute the standard deviation of numbers in {0}",
+        "Evaluate the spread of {0}",
+        "Calculate the std dev for {0}"
+    ],
+    "GreaterThan": [
+        "Check if {0} is greater than {1}",
+        "Is {0} larger than {1}",
+        "Determine if {0} exceeds {1}",
+        "Verify if {0} is more than {1}",
+        "Evaluate if {0} > {1}",
+        "See if {0} is bigger than {1}",
+        "Check whether {0} is greater than {1}",
+        "Determine if {0} is above {1}",
+        "Is {0} more than {1}",
+        "Verify if {0} surpasses {1}",
+        "Evaluate whether {0} is larger than {1}",
+        "Check if {0} is higher than {1}",
+        "Determine if {0} is greater than {1}",
+        "See if {0} exceeds {1}",
+        "Is {0} greater than {1}"
+    ],
+    "LessThan": [
+        "Check if {0} is less than {1}",
+        "Is {0} smaller than {1}",
+        "Determine if {0} is below {1}",
+        "Verify if {0} is less than {1}",
+        "Evaluate if {0} < {1}",
+        "See if {0} is smaller than {1}",
+        "Check whether {0} is less than {1}",
+        "Determine if {0} is under {1}",
+        "Is {0} less than {1}",
+        "Verify if {0} is below {1}",
+        "Evaluate whether {0} is smaller than {1}",
+        "Check if {0} is lower than {1}",
+        "Determine if {0} is less than {1}",
+        "See if {0} is under {1}",
+        "Is {0} smaller than {1}"
+    ],
+    "Equal": [
+        "Check if {0} equals {1}",
+        "Is {0} equal to {1}",
+        "Determine if {0} is the same as {1}",
+        "Verify if {0} == {1}",
+        "Evaluate if {0} equals {1}",
+        "See if {0} is identical to {1}",
+        "Check whether {0} is equal to {1}",
+        "Determine if {0} matches {1}",
+        "Is {0} the same as {1}",
+        "Verify if {0} is equal to {1}",
+        "Evaluate whether {0} is the same as {1}",
+        "Check if {0} is equivalent to {1}",
+        "Determine if {0} equals {1}",
+        "See if {0} is equal to {1}",
+        "Is {0} equivalent to {1}"
+    ],
+    "NotEqual": [
+        "Check if {0} is not equal to {1}",
+        "Is {0} different from {1}",
+        "Determine if {0} is not the same as {1}",
+        "Verify if {0} != {1}",
+        "Evaluate if {0} is not equal to {1}",
+        "See if {0} differs from {1}",
+        "Check whether {0} is not equal to {1}",
+        "Determine if {0} does not match {1}",
+        "Is {0} not the same as {1}",
+        "Verify if {0} is different from {1}",
+        "Evaluate whether {0} is not the same as {1}",
+        "Check if {0} is not equivalent to {1}",
+        "Determine if {0} is not equal to {1}",
+        "See if {0} differs from {1}",
+        "Is {0} not equal to {1}"
+    ],
+    "GreaterOrEqual": [
+        "Check if {0} is greater than or equal to {1}",
+        "Is {0} at least {1}",
+        "Determine if {0} is no less than {1}",
+        "Verify if {0} >= {1}",
+        "Evaluate if {0} is greater or equal to {1}",
+        "See if {0} is at least {1}",
+        "Check whether {0} is greater than or equal to {1}",
+        "Determine if {0} is not less than {1}",
+        "Is {0} no smaller than {1}",
+        "Verify if {0} is at least equal to {1}",
+        "Evaluate whether {0} is greater or equal to {1}",
+        "Check if {0} is greater than or equals {1}",
+        "Determine if {0} is at least {1}",
+        "See if {0} is not smaller than {1}",
+        "Is {0} greater than or equal to {1}"
+    ],
+    "LessOrEqual": [
+        "Check if {0} is less than or equal to {1}",
+        "Is {0} at most {1}",
+        "Determine if {0} is no more than {1}",
+        "Verify if {0} <= {1}",
+        "Evaluate if {0} is less or equal to {1}",
+        "See if {0} is at most {1}",
+        "Check whether {0} is less than or equal to {1}",
+        "Determine if {0} is not more than {1}",
+        "Is {0} no larger than {1}",
+        "Verify if {0} is at most equal to {1}",
+        "Evaluate whether {0} is less or equal to {1}",
+        "Check if {0} is less than or equals {1}",
+        "Determine if {0} is at most {1}",
+        "See if {0} is not larger than {1}",
+        "Is {0} less than or equal to {1}"
+    ],
+    "And": [
+        "Check if {0} and {1} are true",
+        "Is {0} and {1} both true",
+        "Determine if both {0} and {1} hold",
+        "Verify if {0} && {1}",
+        "Evaluate if {0} and {1} are true",
+        "See if both {0} and {1} are true",
+        "Check whether {0} and {1} are both true",
+        "Determine if {0} and {1} are satisfied",
+        "Is {0} and {1} true",
+        "Verify if both {0} and {1} are true",
+        "Evaluate whether {0} and {1} hold",
+        "Check if {0} and {1} are both valid",
+        "Determine if {0} and {1} are true together",
+        "See if {0} and {1} are both true",
+        "Is {0} and {1} satisfied"
+    ],
+    "Or": [
+        "Check if {0} or {1} is true",
+        "Is either {0} or {1} true",
+        "Determine if at least one of {0} or {1} holds",
+        "Verify if {0} || {1}",
+        "Evaluate if {0} or {1} is true",
+        "See if either {0} or {1} is true",
+        "Check whether {0} or {1} is true",
+        "Determine if {0} or {1} is satisfied",
+        "Is {0} or {1} true",
+        "Verify if at least {0} or {1} is true",
+        "Evaluate whether {0} or {1} holds",
+        "Check if {0} or {1} is valid",
+        "Determine if either {0} or {1} is true",
+        "See if {0} or {1} is true",
+        "Is either {0} or {1} satisfied"
+    ],
+    "Not": [
+        "Check if {0} is not true",
+        "Is {0} false",
+        "Determine if {0} is not true",
+        "Verify if !{0}",
+        "Evaluate if {0} is not true",
+        "See if {0} is false",
+        "Check whether {0} is not true",
+        "Determine if {0} is not satisfied",
+        "Is {0} not true",
+        "Verify if {0} is false",
+        "Evaluate whether {0} is not true",
+        "Check if {0} is not valid",
+        "Determine if {0} is false",
+        "See if {0} is not true",
+        "Is {0} not satisfied"
+    ],
+    "IsEven": [
+        "Check if {0} is even",
+        "Is {0} an even number",
+        "Determine if {0} is divisible by 2",
+        "Verify if {0} is even",
+        "Evaluate if {0} is an even integer",
+        "See if {0} is even",
+        "Check whether {0} is an even number",
+        "Determine if {0} is evenly divisible by 2",
+        "Is {0} even",
+        "Verify if {0} is an even value",
+        "Evaluate whether {0} is even",
+        "Check if {0} is an even integer",
+        "Determine if {0} is even",
+        "See if {0} is divisible by two",
+        "Is {0} an even number"
+    ],
+    "IsOdd": [
+        "Check if {0} is odd",
+        "Is {0} an odd number",
+        "Determine if {0} is not divisible by 2",
+        "Verify if {0} is odd",
+        "Evaluate if {0} is an odd integer",
+        "See if {0} is odd",
+        "Check whether {0} is an odd number",
+        "Determine if {0} is not evenly divisible by 2",
+        "Is {0} odd",
+        "Verify if {0} is an odd value",
+        "Evaluate whether {0} is odd",
+        "Check if {0} is an odd integer",
+        "Determine if {0} is odd",
+        "See if {0} is not divisible by two",
+        "Is {0} an odd number"
+    ],
+    "IsPrime": [
+        "Check if {0} is prime",
+        "Is {0} a prime number",
+        "Determine if {0} is a prime",
+        "Verify if {0} is prime",
+        "Evaluate if {0} is a prime number",
+        "See if {0} is prime",
+        "Check whether {0} is a prime number",
+        "Determine if {0} has no divisors other than 1 and itself",
+        "Is {0} prime",
+        "Verify if {0} is a prime value",
+        "Evaluate whether {0} is prime",
+        "Check if {0} is a prime integer",
+        "Determine if {0} is prime",
+        "See if {0} is a prime number",
+        "Is {0} a prime integer"
+    ],
+    "IsPerfectSquare": [
+        "Check if {0} is a perfect square",
+        "Is {0} a perfect square",
+        "Determine if {0} is a square number",
+        "Verify if {0} is a perfect square",
+        "Evaluate if {0} is a square of an integer",
+        "See if {0} is a perfect square",
+        "Check whether {0} is a perfect square number",
+        "Determine if {0} is the square of a number",
+        "Is {0} a square number",
+        "Verify if {0} is a perfect square value",
+        "Evaluate whether {0} is a perfect square",
+        "Check if {0} is a square integer",
+        "Determine if {0} is a perfect square",
+        "See if {0} is a square of an integer",
+        "Is {0} a perfect square number"
+    ],
+    "IsDivisible": [
+        "Check if {0} is divisible by {1}",
+        "Is {0} divisible by {1}",
+        "Determine if {0} can be divided by {1}",
+        "Verify if {0} is divisible by {1}",
+        "Evaluate if {0} is evenly divisible by {1}",
+        "See if {0} is divisible by {1}",
+        "Check whether {0} is divisible by {1}",
+        "Determine if {0} divides evenly by {1}",
+        "Is {0} evenly divisible by {1}",
+        "Verify if {0} is a multiple of {1}",
+        "Evaluate whether {0} is divisible by {1}",
+        "Check if {0} is a multiple of {1}",
+        "Determine if {0} is divisible by {1}",
+        "See if {0} divides by {1} evenly",
+        "Is {0} divisible by {1}"
+    ],
+    "If": [
+        "If {0} is true, then {1}",
+        "Execute {1} if {0} is true",
+        "If {0} holds, perform {1}",
+        "Check if {0} is true and do {1}",
+        "Evaluate if {0} then {1}",
+        "If condition {0} is true, run {1}",
+        "Perform {1} when {0} is true",
+        "If {0} is satisfied, execute {1}",
+        "Do {1} if {0} is true",
+        "Run {1} when condition {0} holds",
+        "If {0} is true, compute {1}",
+        "Execute {1} if {0} is valid",
+        "If {0}, then perform {1}",
+        "Check {0} and if true, do {1}",
+        "If {0} is met, run {1}"
+    ],
+    "IfElse": [
+        "If {0} is true, then {1}, else {2}",
+        "Execute {1} if {0} is true, otherwise {2}",
+        "If {0} holds, perform {1}, else {2}",
+        "Check if {0} is true and do {1}, else do {2}",
+        "Evaluate if {0} then {1}, else {2}",
+        "If condition {0} is true, run {1}, else run {2}",
+        "Perform {1} when {0} is true, otherwise {2}",
+        "If {0} is satisfied, execute {1}, else {2}",
+        "Do {1} if {0} is true, else do {2}",
+        "Run {1} when condition {0} holds, else {2}",
+        "If {0} is true, compute {1}, else compute {2}",
+        "Execute {1} if {0} is valid, else {2}",
+        "If {0}, then perform {1}, otherwise {2}",
+        "Check {0} and if true, do {1}, else {2}",
+        "If {0} is met, run {1}, else run {2}"
+    ],
+    "Ternary": [
+        "{1} if {0} else {2}",
+        "Return {1} if {0} is true, else {2}",
+        "Evaluate {1} if {0} holds, else {2}",
+        "Compute {1} when {0} is true, otherwise {2}",
+        "If {0} then {1} else {2}",
+        "Select {1} if {0} is true, else {2}",
+        "Get {1} if {0} is valid, else {2}",
+        "Determine {1} if {0} is satisfied, else {2}",
+        "Choose {1} if {0} holds, else {2}",
+        "Evaluate {1} if {0} is true, otherwise {2}",
+        "Return {1} when {0} is true, else {2}",
+        "If {0} is true, get {1}, else get {2}",
+        "Compute {1} if {0}, else {2}",
+        "Select {1} when {0} is true, otherwise {2}",
+        "Determine {1} if {0} is true, else {2}"
+    ],
+    "ForLoop": [
+        "For each number from {0} to {1}, do {2}",
+        "Loop from {0} to {1} and perform {2}",
+        "Iterate from {0} to {1} and execute {2}",
+        "For numbers {0} to {1}, run {2}",
+        "Repeat from {0} to {1} doing {2}",
+        "For each value from {0} to {1}, compute {2}",
+        "Loop through {0} to {1} and do {2}",
+        "Iterate over range {0} to {1} and perform {2}",
+        "For each integer from {0} to {1}, execute {2}",
+        "Run {2} for each number from {0} to {1}",
+        "Loop from {0} to {1} performing {2}",
+        "Iterate from {0} to {1} computing {2}",
+        "For {0} to {1}, do {2}",
+        "Repeat {2} for numbers {0} to {1}",
+        "Execute {2} for each value from {0} to {1}"
+    ],
+    "WhileLoop": [
+        "While {0} is true, do {1}",
+        "Loop while {0} holds and perform {1}",
+        "Repeat {1} while {0} is true",
+        "Execute {1} as long as {0} is true",
+        "While {0} is valid, run {1}",
+        "Continue {1} while {0} is satisfied",
+        "Loop while {0} and do {1}",
+        "Perform {1} while {0} remains true",
+        "While condition {0} holds, execute {1}",
+        "Repeat {1} as long as {0} is true",
+        "While {0}, compute {1}",
+        "Execute {1} while {0} is true",
+        "Loop while {0} is true and perform {1}",
+        "Continue running {1} while {0} holds",
+        "While {0} is met, do {1}"
+    ],
+    "Break": [
+        "Break the loop",
+        "Exit the loop",
+        "Stop the loop",
+        "Terminate the loop",
+        "End the loop",
+        "Break out of the loop",
+        "Cease the loop",
+        "Halt the loop",
+        "Exit from the loop",
+        "Stop looping",
+        "Terminate looping",
+        "Break the iteration",
+        "End the iteration",
+        "Stop the iteration",
+        "Cease looping"
+    ],
+    "Continue": [
+        "Continue to the next iteration",
+        "Skip to the next loop iteration",
+        "Proceed to the next iteration",
+        "Move to the next loop step",
+        "Continue with the next loop",
+        "Skip the current iteration",
+        "Go to the next iteration",
+        "Advance to the next loop iteration",
+        "Continue the loop",
+        "Proceed with the next loop step",
+        "Skip to the next cycle",
+        "Move to the next cycle",
+        "Continue to the next step",
+        "Skip this iteration and continue",
+        "Go to the next loop iteration"
+    ],
+    "Return": [
+        "Return {0}",
+        "Give back {0}",
+        "Output {0} as result",
+        "Send back {0}",
+        "Return the value {0}",
+        "Provide {0} as output",
+        "Get {0} as result",
+        "Return {0} as the result",
+        "Send {0} back",
+        "Output the value {0}",
+        "Give {0} as the result",
+        "Return {0} value",
+        "Provide the result {0}",
+        "Send back the value {0}",
+        "Return {0} as output"
+    ],
+    "FunctionCall": [
+        "Call function {0} with {1}",
+        "Execute function {0} with parameters {1}",
+        "Run function {0} with {1}",
+        "Invoke {0} with {1}",
+        "Perform function {0} with {1}",
+        "Call {0} using {1}",
+        "Execute {0} with arguments {1}",
+        "Run {0} with parameters {1}",
+        "Invoke function {0} with {1}",
+        "Perform {0} with arguments {1}",
+        "Call the function {0} with {1}",
+        "Execute {0} using {1}",
+        "Run the function {0} with {1}",
+        "Invoke {0} with parameters {1}",
+        "Perform function {0} using {1}"
+    ],
+    "Print": [
+        "Print {0}",
+        "Display {0}",
+        "Show {0}",
+        "Output {0}",
+        "Present the value {0}",
+        "Exhibit {0} on screen",
+        "Render {0} as output",
+        "Write out {0}",
+        "Print the value {0}",
+        "Display {0} on console",
+        "Show the result {0}",
+        "Output the value {0}",
+        "Present {0} on the screen",
+        "Write {0} to output",
+        "Exhibit the value {0}"
+    ],
+    "Read": [
+        "Read input",
+        "Get input from user",
+        "Take input",
+        "Receive input",
+        "Read a value",
+        "Get a value from input",
+        "Take user input",
+        "Receive a value",
+        "Read input value",
+        "Get input from the user",
+        "Take a value from input",
+        "Receive user input",
+        "Read the input",
+        "Get the user input",
+        "Take input value"
+    ],
+    "SumEvens": [
+        "Sum even numbers from {0} to {1}",
+        "Total all even numbers between {0} and {1}",
+        "Add up evens from {0} to {1}",
+        "Calculate the sum of even integers from {0} to {1}",
+        "Aggregate even values in range {0} to {1}",
+        "Compute total of even numbers between {0} and {1}",
+        "Find the sum of evens from {0} to {1}",
+        "Calculate the total of even numbers from {0} to {1}",
+        "Sum all even integers between {0} and {1}",
+        "Add even numbers in range {0} to {1}",
+        "Compute the sum of even values from {0} to {1}",
+        "Total even numbers from {0} to {1}",
+        "Find the aggregate of even integers from {0} to {1}",
+        "Calculate sum of even numbers between {0} and {1}",
+        "Sum up even values from {0} to {1}"
+    ],
+    "SumOdds": [
+        "Sum odd numbers from {0} to {1}",
+        "Total all odd numbers between {0} and {1}",
+        "Add up odds from {0} to {1}",
+        "Calculate the sum of odd integers from {0} to {1}",
+        "Aggregate odd values in range {0} to {1}",
+        "Compute total of odd numbers between {0} and {1}",
+        "Find the sum of odds from {0} to {1}",
+        "Calculate the total of odd numbers from {0} to {1}",
+        "Sum all odd integers between {0} and {1}",
+        "Add odd numbers in range {0} to {1}",
+        "Compute the sum of odd values from {0} to {1}",
+        "Total odd numbers from {0} to {1}",
+        "Find the aggregate of odd integers from {0} to {1}",
+        "Calculate sum of odd numbers between {0} and {1}",
+        "Sum up odd values from {0} to {1}"
+    ],
+    "ListAppend": [
+        "Append {0} to list {1}",
+        "Add {0} to the list {1}",
+        "Insert {0} into list {1}",
+        "Put {0} in list {1}",
+        "Add element {0} to {1}",
+        "Append element {0} to {1}",
+        "Insert element {0} to {1}",
+        "Add {0} to the end of {1}",
+        "Put {0} at the end of list {1}",
+        "Append {0} to the collection {1}",
+        "Add {0} to {1} list",
+        "Insert element {0} to list {1}",
+        "Put element {0} in {1}",
+        "Append {0} to the list named {1}",
+        "Add {0} to the list {1}"
+    ],
+    "ListRemove": [
+        "Remove {0} from list {1}",
+        "Delete {0} from {1}",
+        "Take {0} out of list {1}",
+        "Remove element {0} from {1}",
+        "Delete element {0} from list {1}",
+        "Remove {0} from the list {1}",
+        "Take out {0} from {1}",
+        "Delete {0} from the collection {1}",
+        "Remove {0} from {1} list",
+        "Erase {0} from list {1}",
+        "Take {0} out of the list {1}",
+        "Delete element {0} from {1}",
+        "Remove {0} from the list named {1}",
+        "Erase {0} from {1}",
+        "Take element {0} out of {1}"
+    ],
+    "ListLength": [
+        "Find the length of list {0}",
+        "Get the size of {0}",
+        "Calculate the number of elements in {0}",
+        "Determine the length of {0}",
+        "Compute the size of list {0}",
+        "Find how many items in {0}",
+        "Get the length of the list {0}",
+        "Calculate the count of elements in {0}",
+        "Determine the size of {0}",
+        "Find the number of elements in list {0}",
+        "Compute the length of {0}",
+        "Get the count of items in {0}",
+        "Calculate the length of the list {0}",
+        "Find the size of the list {0}",
+        "Determine how many elements in {0}"
+    ],
+    "ListSort": [
+        "Sort list {0} in ascending order",
+        "Arrange {0} in ascending order",
+        "Order list {0} from smallest to largest",
+        "Sort {0} ascending",
+        "Put list {0} in order",
+        "Arrange the list {0} in ascending order",
+        "Sort the elements of {0} from low to high",
+        "Order {0} in ascending sequence",
+        "Sort {0} in increasing order",
+        "Arrange {0} from smallest to largest",
+        "Put {0} in ascending order",
+        "Sort the list {0} ascending",
+        "Order the elements of {0} in ascending order",
+        "Arrange list {0} in increasing order",
+        "Sort {0} from low to high"
+    ],
+    "ListReverse": [
+        "Reverse list {0}",
+        "Flip the order of {0}",
+        "Invert list {0}",
+        "Reverse the elements of {0}",
+        "Turn {0} backwards",
+        "Flip list {0}",
+        "Invert the order of {0}",
+        "Reverse the sequence of {0}",
+        "Put {0} in reverse order",
+        "Turn the list {0} backwards",
+        "Reverse the list {0}",
+        "Flip the elements of {0}",
+        "Invert {0} sequence",
+        "Reverse order of list {0}",
+        "Turn {0} around"
+    ],
+    "ListContains": [
+        "Check if list {0} contains {1}",
+        "Does {0} include {1}",
+        "Is {1} in list {0}",
+        "Verify if {0} contains {1}",
+        "Determine if {1} is in {0}",
+        "See if {0} includes {1}",
+        "Check whether {0} has {1}",
+        "Is {1} part of list {0}",
+        "Verify if {1} exists in {0}",
+        "Determine if {0} contains element {1}",
+        "Check if {1} is in the list {0}",
+        "See if {1} is included in {0}",
+        "Is {1} within {0}",
+        "Verify if {0} includes {1}",
+        "Check if {0} contains the element {1}"
+    ],
+    "ListIndex": [
+        "Find the index of {0} in list {1}",
+        "Get the position of {0} in {1}",
+        "Locate {0} in list {1}",
+        "Determine the index of {0} in {1}",
+        "Find where {0} is in {1}",
+        "Get the index of {0} in the list {1}",
+        "Locate the position of {0} in {1}",
+        "Find the location of {0} in {1}",
+        "Determine where {0} is in list {1}",
+        "Get the position of {0} in list {1}",
+        "Find the index of element {0} in {1}",
+        "Locate {0} in the list {1}",
+        "Determine the position of {0} in {1}",
+        "Find where {0} appears in {1}",
+        "Get the location of {0} in {1}"
+    ],
+    "ListSlice": [
+        "Get slice of list {0} from {1} to {2}",
+        "Extract elements of {0} from index {1} to {2}",
+        "Take a slice of {0} between {1} and {2}",
+        "Get part of list {0} from {1} to {2}",
+        "Slice {0} from {1} to {2}",
+        "Extract {0} from index {1} to {2}",
+        "Get a portion of {0} from {1} to {2}",
+        "Take elements of {0} between {1} and {2}",
+        "Slice the list {0} from {1} to {2}",
+        "Extract a section of {0} from {1} to {2}",
+        "Get {0} elements from {1} to {2}",
+        "Take a part of {0} from index {1} to {2}",
+        "Slice {0} between {1} and {2}",
+        "Extract portion of list {0} from {1} to {2}",
+        "Get the slice of {0} from {1} to {2}"
+    ],
+    "AddLinkedLists": [
+        "Step 1: Check if first list is null or zero, return second list\nStep 2: Check if second list is null or zero, return first list\nStep 3: Initialize pointers first, second, prev\nStep 4: Find lengths of both lists\nStep 5: If second list is longer, swap first and second\nStep 6: Traverse first list, add second list values and carry, update carry\nStep 7: If carry remains, add new node\nStep 8: Return longer list",
+        "Step 1: Verify if first linked list is empty or zero, return second list\nStep 2: Verify if second linked list is empty or zero, return first list\nStep 3: Set up pointers for first, second, and previous nodes\nStep 4: Compute lengths of both lists\nStep 5: If second list has more nodes, swap pointers\nStep 6: Iterate through first list, add values from second list with carry\nStep 7: If carry exists, append new node\nStep 8: Return list with greater length",
+        "Step 1: Check if list one is null or zero, return list two\nStep 2: Check if list two is null or zero, return list one\nStep 3: Initialize first, second, prev pointers\nStep 4: Calculate the lengths of both lists\nStep 5: Swap lists if second is longer\nStep 6: Traverse first list, add second list values with carry\nStep 7: Add new node if carry remains\nStep 8: Return the longer list",
+        "Step 1: If first list is empty or zero, return second list\nStep 2: If second list is empty or zero, return first list\nStep 3: Set pointers for first, second, prev\nStep 4: Find the lengths of both lists\nStep 5: If second list is longer, swap them\nStep 6: Iterate first list, add values from second with carry\nStep 7: Append node if carry is non-zero\nStep 8: Return the list with more nodes",
+        "Step 1: Check if first linked list is null, return second\nStep 2: Check if second linked list is null, return first\nStep 3: Initialize pointers for first, second, prev\nStep 4: Compute list lengths\nStep 5: Swap if second list is longer\nStep 6: Traverse first, add second’s values and carry\nStep 7: If carry remains, add node\nStep 8: Return longer list",
+        "Step 1: Verify if first list is empty, return second\nStep 2: Verify if second list is empty, return first\nStep 3: Set up first, second, prev pointers\nStep 4: Calculate lengths of lists\nStep 5: If second list has more nodes, swap\nStep 6: Iterate first list, sum second list values with carry\nStep 7: Append new node if carry exists\nStep 8: Return list with greater length",
+        "Step 1: Check if first list is zero or null, return second\nStep 2: Check if second list is zero or null, return first\nStep 3: Initialize first, second, and prev pointers\nStep 4: Find lengths of both lists\nStep 5: Swap pointers if second list is longer\nStep 6: Traverse first, add second values with carry\nStep 7: Add node if carry remains\nStep 8: Return the longer list",
+        "Step 1: If first list is null, return second list\nStep 2: If second list is null, return first list\nStep 3: Set pointers for first, second, prev\nStep 4: Compute lengths of both lists\nStep 5: Swap if second list is longer\nStep 6: Iterate first list, add second values and carry\nStep 7: If carry is non-zero, append node\nStep 8: Return longer list",
+        "Step 1: Check if first linked list is empty or zero, return second\nStep 2: Check if second linked list is empty or zero, return first\nStep 3: Initialize first, second, prev pointers\nStep 4: Calculate list lengths\nStep 5: If second list is longer, swap pointers\nStep 6: Traverse first list, sum second list values with carry\nStep 7: Add new node if carry remains\nStep 8: Return the list with more nodes",
+        "Step 1: Verify if first list is null or zero, return second list\nStep 2: Verify if second list is null or zero, return first list\nStep 3: Set up pointers first, second, prev\nStep 4: Find lengths of both lists\nStep 5: Swap lists if second is longer\nStep 6: Iterate first, add second list values with carry\nStep 7: Append node if carry exists\nStep 8: Return longer list"
+    ],
+    "ReverseLinkedList": [
+        "Reverse linked list {0}",
+        "Invert the linked list {0}",
+        "Flip the linked list {0}",
+        "Reverse the order of {0}",
+        "Turn {0} backwards",
+        "Invert linked list {0}",
+        "Flip the order of linked list {0}",
+        "Reverse the sequence of {0}",
+        "Put linked list {0} in reverse order",
+        "Turn the linked list {0} backwards",
+        "Reverse {0}",
+        "Invert the order of {0}",
+        "Flip {0} sequence",
+        "Reverse the linked list {0}",
+        "Turn {0} around"
+    ],
+    "LinkedListLength": [
+        "Find the length of linked list {0}",
+        "Get the size of linked list {0}",
+        "Calculate the number of nodes in {0}",
+        "Determine the length of {0}",
+        "Compute the size of linked list {0}",
+        "Find how many nodes in {0}",
+        "Get the length of the linked list {0}",
+        "Calculate the count of nodes in {0}",
+        "Determine the size of {0}",
+        "Find the number of nodes in linked list {0}",
+        "Compute the length of {0}",
+        "Get the count of nodes in {0}",
+        "Calculate the length of the linked list {0}",
+        "Find the size of linked list {0}",
+        "Determine how many nodes in {0}"
+    ],
+    "LinkedListInsert": [
+        "Insert {0} into linked list {1} at position {2}",
+        "Add {0} to linked list {1} at index {2}",
+        "Put {0} in linked list {1} at {2}",
+        "Insert node {0} into {1} at position {2}",
+        "Add node {0} to {1} at {2}",
+        "Insert {0} at {2} in linked list {1}",
+        "Put node {0} in {1} at index {2}",
+        "Add {0} into {1} at position {2}",
+        "Insert element {0} into linked list {1} at {2}",
+        "Add {0} to the linked list {1} at {2}",
+        "Put {0} at position {2} in {1}",
+        "Insert {0} into {1} at index {2}",
+        "Add node {0} into linked list {1} at {2}",
+        "Insert {0} at index {2} in {1}",
+        "Put {0} into linked list {1} at {2}"
+    ],
+    "StringConcat": [
+        "Concatenate {0} and {1}",
+        "Join {0} with {1}",
+        "Combine {0} and {1}",
+        "Append {1} to {0}",
+        "Merge {0} with {1}",
+        "Concatenate strings {0} and {1}",
+        "Join the strings {0} and {1}",
+        "Combine strings {0} and {1}",
+        "Append string {1} to {0}",
+        "Merge strings {0} and {1}",
+        "Concatenate {0} with {1}",
+        "Join {0} to {1}",
+        "Combine {0} with string {1}",
+        "Append {1} to string {0}",
+        "Merge {0} and {1} strings"
+    ],
+    "StringLength": [
+        "Find the length of string {0}",
+        "Get the size of {0}",
+        "Calculate the number of characters in {0}",
+        "Determine the length of {0}",
+        "Compute the size of string {0}",
+        "Find how many characters in {0}",
+        "Get the length of the string {0}",
+        "Calculate the count of characters in {0}",
+        "Determine the size of {0}",
+        "Find the number of characters in string {0}",
+        "Compute the length of {0}",
+        "Get the count of characters in {0}",
+        "Calculate the length of the string {0}",
+        "Find the size of string {0}",
+        "Determine how many characters in {0}"
+    ],
+    "StringSubstring": [
+        "Get substring of {0} from {1} to {2}",
+        "Extract part of {0} from index {1} to {2}",
+        "Take a substring of {0} between {1} and {2}",
+        "Get part of string {0} from {1} to {2}",
+        "Slice {0} from {1} to {2}",
+        "Extract {0} from index {1} to {2}",
+        "Get a portion of {0} from {1} to {2}",
+        "Take characters of {0} between {1} and {2}",
+        "Slice the string {0} from {1} to {2}",
+        "Extract a section of {0} from {1} to {2}",
+        "Get {0} characters from {1} to {2}",
+        "Take a part of {0} from index {1} to {2}",
+        "Slice {0} between {1} and {2}",
+        "Extract portion of string {0} from {1} to {2}",
+        "Get the substring of {0} from {1} to {2}"
+    ],
+    "StringUpper": [
+        "Convert {0} to uppercase",
+        "Make {0} uppercase",
+        "Change {0} to all caps",
+        "Transform {0} to uppercase",
+        "Convert string {0} to uppercase",
+        "Make the string {0} uppercase",
+        "Change string {0} to all caps",
+        "Transform {0} to all uppercase",
+        "Convert {0} to capital letters",
+        "Make {0} all caps",
+        "Change {0} to uppercase letters",
+        "Transform string {0} to uppercase",
+        "Convert {0} to upper case",
+        "Make {0} upper case",
+        "Change {0} to all capital letters"
+    ],
+    "StringLower": [
+        "Convert {0} to lowercase",
+        "Make {0} lowercase",
+        "Change {0} to all lowercase",
+        "Transform {0} to lowercase",
+        "Convert string {0} to lowercase",
+        "Make the string {0} lowercase",
+        "Change string {0} to all lowercase",
+        "Transform {0} to all lowercase",
+        "Convert {0} to small letters",
+        "Make {0} all lowercase",
+        "Change {0} to lowercase letters",
+        "Transform string {0} to lowercase",
+        "Convert {0} to lower case",
+        "Make {0} lower case",
+        "Change {0} to all small letters"
+    ],
+    "StringContains": [
+        "Check if string {0} contains {1}",
+        "Does {0} include {1}",
+        "Is {1} in string {0}",
+        "Verify if {0} contains {1}",
+        "Determine if {1} is in {0}",
+        "See if {0} includes {1}",
+        "Check whether {0} has {1}",
+        "Is {1} part of string {0}",
+        "Verify if {1} exists in {0}",
+        "Determine if {0} contains substring {1}",
+        "Check if {1} is in the string {0}",
+        "See if {1} is included in {0}",
+        "Is {1} within {0}",
+        "Verify if {0} includes {1}",
+        "Check if {0} contains the substring {1}"
+    ],
+    "Fibonacci": [
+        "Calculate the {0}th Fibonacci number",
+        "Find the {0}th Fibonacci value",
+        "Compute Fibonacci number {0}",
+        "Determine the {0}th number in Fibonacci sequence",
+        "Get the {0}th Fibonacci number",
+        "Evaluate Fibonacci for {0}",
+        "Find Fibonacci({0})",
+        "Compute the {0}th Fibonacci",
+        "Calculate the Fibonacci number at position {0}",
+        "Determine the {0}th Fibonacci value",
+        "Get the Fibonacci number for {0}",
+        "Find the {0}th number in the Fibonacci sequence",
+        "Compute Fibonacci value for {0}",
+        "Calculate the {0}th Fibonacci term",
+        "Determine Fibonacci number {0}"
+    ],
+    "BinarySearch": [
+        "Perform binary search for {0} in list {1}",
+        "Search for {0} in sorted list {1} using binary search",
+        "Find {0} in {1} with binary search",
+        "Locate {0} in sorted list {1} using binary search",
+        "Binary search {0} in list {1}",
+        "Search {0} in {1} with binary search",
+        "Find the position of {0} in {1} using binary search",
+        "Locate {0} in {1} with binary search",
+        "Perform binary search to find {0} in {1}",
+        "Search for {0} in sorted {1} using binary search",
+        "Binary search for {0} in {1}",
+        "Find {0} in sorted list {1} with binary search",
+        "Locate the position of {0} in {1} using binary search",
+        "Search {0} in list {1} using binary search",
+        "Perform binary search on {1} for {0}"
+    ],
+    "GraphDFS": [
+        "Perform depth-first search on graph {0} starting at {1}",
+        "Execute DFS on graph {0} from node {1}",
+        "Traverse graph {0} using depth-first search starting at {1}",
+        "Explore {0} with DFS from {1}",
+        "Run depth-first search on {0} starting at {1}",
+        "Perform DFS traversal on graph {0} from node {1}",
+        "Search graph {0} with depth-first search from {1}",
+        "Traverse {0} using DFS starting at {1}",
+        "Execute depth-first search on {0} from {1}",
+        "Explore graph {0} using depth-first search at {1}",
+        "Run DFS on {0} starting from node {1}",
+        "Perform depth-first traversal on {0} from {1}",
+        "Search {0} with DFS from node {1}",
+        "Traverse graph {0} with depth-first search at {1}",
+        "Execute DFS on graph {0} starting at node {1}"
+    ],
+    "GraphBFS": [
+        "Perform breadth-first search on graph {0} starting at {1}",
+        "Execute BFS on graph {0} from node {1}",
+        "Traverse graph {0} using breadth-first search starting at {1}",
+        "Explore {0} with BFS from {1}",
+        "Run breadth-first search on {0} starting at {1}",
+        "Perform BFS traversal on graph {0} from node {1}",
+        "Search graph {0} with breadth-first search from {1}",
+        "Traverse {0} using BFS starting at {1}",
+        "Execute breadth-first search on {0} from {1}",
+        "Explore graph {0} using breadth-first search at {1}",
+        "Run BFS on {0} starting from node {1}",
+        "Perform breadth-first traversal on {0} from {1}",
+        "Search {0} with BFS from node {1}",
+        "Traverse graph {0} with breadth-first search at {1}",
+        "Execute BFS on graph {0} starting at node {1}"
+    ],
+    "SortQuick": [
+        "Sort list {0} using quicksort",
+        "Apply quicksort to {0}",
+        "Order {0} with quicksort",
+        "Sort {0} using quicksort algorithm",
+        "Arrange list {0} with quicksort",
+        "Perform quicksort on {0}",
+        "Sort the list {0} using quicksort",
+        "Order list {0} with quicksort algorithm",
+        "Apply quicksort to sort {0}",
+        "Sort {0} in ascending order with quicksort",
+        "Arrange {0} using quicksort",
+        "Perform quicksort to order {0}",
+        "Sort list {0} with quicksort method",
+        "Order {0} using quicksort",
+        "Apply quicksort algorithm to {0}"
+    ],
+    "SortMerge": [
+        "Sort list {0} using mergesort",
+        "Apply mergesort to {0}",
+        "Order {0} with mergesort",
+        "Sort {0} using mergesort algorithm",
+        "Arrange list {0} with mergesort",
+        "Perform mergesort on {0}",
+        "Sort the list {0} using mergesort",
+        "Order list {0} with mergesort algorithm",
+        "Apply mergesort to sort {0}",
+        "Sort {0} in ascending order with mergesort",
+        "Arrange {0} using mergesort",
+        "Perform mergesort to order {0}",
+        "Sort list {0} with mergesort method",
+        "Order {0} using mergesort",
+        "Apply mergesort algorithm to {0}"
+    ],
+    "HashSetAdd": [
+        "Add {0} to hash set {1}",
+        "Insert {0} into hash set {1}",
+        "Put {0} in hash set {1}",
+        "Add element {0} to {1}",
+        "Insert element {0} into {1}",
+        "Put element {0} in {1}",
+        "Add {0} to the hash set {1}",
+        "Insert {0} into the set {1}",
+        "Put {0} into hash set {1}",
+        "Add item {0} to {1}",
+        "Insert item {0} into hash set {1}",
+        "Put item {0} in {1}",
+        "Add {0} to set {1}",
+        "Insert {0} to hash set {1}",
+        "Put {0} into the hash set {1}"
+    ],
+    "HashSetContains": [
+        "Check if hash set {0} contains {1}",
+        "Does {0} include {1}",
+        "Is {1} in hash set {0}",
+        "Verify if {0} contains {1}",
+        "Determine if {1} is in {0}",
+        "See if {0} includes {1}",
+        "Check whether {0} has {1}",
+        "Is {1} part of hash set {0}",
+        "Verify if {1} exists in {0}",
+        "Determine if {0} contains element {1}",
+        "Check if {1} is in the hash set {0}",
+        "See if {1} is included in {0}",
+        "Is {1} within {0}",
+        "Verify if {0} includes {1}",
+        "Check if {0} contains the element {1}"
+    ],
+    "StackPush": [
+        "Push {0} onto stack {1}",
+        "Add {0} to stack {1}",
+        "Insert {0} onto {1}",
+        "Put {0} on stack {1}",
+        "Push element {0} to {1}",
+        "Add element {0} onto stack {1}",
+        "Insert element {0} to {1}",
+        "Put element {0} on {1}",
+        "Push {0} to the stack {1}",
+        "Add {0} to the top of {1}",
+        "Insert {0} onto stack {1}",
+        "Put {0} onto {1}",
+        "Push item {0} to {1}",
+        "Add {0} onto stack {1}",
+        "Insert {0} on top of {1}"
+    ],
+    "StackPop": [
+        "Pop from stack {0}",
+        "Remove the top element from {0}",
+        "Take the top item off {0}",
+        "Pop the top of stack {0}",
+        "Remove element from {0}",
+        "Take off the top of {0}",
+        "Pop element from stack {0}",
+        "Remove the top from {0}",
+        "Take the top element from stack {0}",
+        "Pop top item from {0}",
+        "Remove top item from stack {0}",
+        "Take top off {0}",
+        "Pop from the stack {0}",
+        "Remove the top element of {0}",
+        "Take the front from stack {0}"
+    ],
+    "QueueEnqueue": [
+        "Enqueue {0} into queue {1}",
+        "Add {0} to queue {1}",
+        "Insert {0} into {1}",
+        "Put {0} in queue {1}",
+        "Enqueue element {0} to {1}",
+        "Add element {0} into queue {1}",
+        "Insert element {0} to {1}",
+        "Put element {0} in {1}",
+        "Enqueue {0} to the queue {1}",
+        "Add {0} to the end of {1}",
+        "Insert {0} into queue {1}",
+        "Put {0} into {1}",
+        "Enqueue item {0} to {1}",
+        "Add {0} into queue {1}",
+        "Insert {0} at the end of {1}"
+    ],
+    "QueueDequeue": [
+        "Dequeue from queue {0}",
+        "Remove the front element from {0}",
+        "Take the front item off {0}",
+        "Dequeue the front of queue {0}",
+        "Remove element from {0}",
+        "Take off the front of {0}",
+        "Dequeue element from queue {0}",
+        "Remove the front from {0}",
+        "Take the front element from queue {0}",
+        "Dequeue front item from {0}",
+        "Remove front item from queue {0}",
+        "Take front off {0}",
+        "Dequeue from the queue {0}",
+        "Remove the front element of {0}",
+        "Take the front from queue {0}"
+    ]
+}
+
+def generate_examples(num_examples=90000):
+    examples = []
+    intents = list(TEMPLATES.keys())
+    
+    # Add progress bar
+    for _ in tqdm(range(num_examples), desc="Generating examples"):
+        intent = random.choice(intents)
+        template = random.choice(TEMPLATES[intent])
+        
+        # Arithmetic Operations
+        if intent in ["Add", "Subtract", "Multiply", "Divide", "Modulus", "Power", "Max", "Min", "GCD", "LCM"]:
+            num1 = random.randint(1, 100)
+            num2 = random.randint(1, 100) if intent != "Divide" else random.randint(1, 100)  # Avoid division by zero
+            input_text = template.format(num1, num2)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"numbers": [num1, num2]}
+            ast = {
+                "Add": f"add({num1}, {num2})",
+                "Subtract": f"subtract({num1}, {num2})",
+                "Multiply": f"multiply({num1}, {num2})",
+                "Divide": f"divide({num1}, {num2})",
+                "Modulus": f"modulus({num1}, {num2})",
+                "Power": f"power({num1}, {num2})",
+                "Max": f"max({num1}, {num2})",
+                "Min": f"min({num1}, {num2})",
+                "GCD": f"gcd({num1}, {num2})",
+                "LCM": f"lcm({num1}, {num2})"
+            }[intent]
+            output = {
+                "Add": num1 + num2,
+                "Subtract": num1 - num2,
+                "Multiply": num1 * num2,
+                "Divide": num1 / num2 if num2 != 0 else "Error: Division by zero",
+                "Modulus": num1 % num2 if num2 != 0 else "Error: Modulus by zero",
+                "Power": num1 ** num2,
+                "Max": max(num1, num2),
+                "Min": min(num1, num2),
+                "GCD": math.gcd(num1, num2),
+                "LCM": abs(num1 * num2) // math.gcd(num1, num2) if math.gcd(num1, num2) != 0 else "Error: GCD is zero"
+            }[intent]
+        
+        # Square Root
+        elif intent == "SquareRoot":
+            num = random.randint(1, 100)
+            input_text = template.format(num)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"number": num}
+            ast = f"sqrt({num})"
+            output = math.sqrt(num)
+        
+        # Factorial
+        elif intent == "Factorial":
+            num = random.randint(1, 10)
+            input_text = template.format(num)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"number": num}
+            ast = f"factorial({num})"
+            output = math.factorial(num)
+        
+        # Statistical Operations
+        elif intent in ["Mean", "Median", "StandardDeviation"]:
+            numbers = [random.randint(1, 100) for _ in range(random.randint(3, 10))]
+            numbers_str = f"[{', '.join(map(str, numbers))}]"
+            input_text = template.format(numbers_str)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"numbers": numbers}
+            ast = {
+                "Mean": f"mean({numbers_str})",
+                "Median": f"median({numbers_str})",
+                "StandardDeviation": f"std_dev({numbers_str})"
+            }[intent]
+            output = {
+                "Mean": sum(numbers) / len(numbers),
+                "Median": sorted(numbers)[len(numbers)//2] if len(numbers) % 2 else sum(sorted(numbers)[len(numbers)//2-1:len(numbers)//2+1])/2,
+                "StandardDeviation": math.sqrt(sum((x - sum(numbers)/len(numbers))**2 for x in numbers) / len(numbers))
+            }[intent]
+        
+        # Relational Operators
+        elif intent in ["GreaterThan", "LessThan", "Equal", "NotEqual", "GreaterOrEqual", "LessOrEqual"]:
+            num1 = random.randint(1, 100)
+            num2 = random.randint(1, 100)
+            input_text = template.format(num1, num2)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"numbers": [num1, num2]}
+            ast = {
+                "GreaterThan": f"greater_than({num1}, {num2})",
+                "LessThan": f"less_than({num1}, {num2})",
+                "Equal": f"equal({num1}, {num2})",
+                "NotEqual": f"not_equal({num1}, {num2})",
+                "GreaterOrEqual": f"greater_or_equal({num1}, {num2})",
+                "LessOrEqual": f"less_or_equal({num1}, {num2})"
+            }[intent]
+            output = {
+                "GreaterThan": num1 > num2,
+                "LessThan": num1 < num2,
+                "Equal": num1 == num2,
+                "NotEqual": num1 != num2,
+                "GreaterOrEqual": num1 >= num2,
+                "LessOrEqual": num1 <= num2
+            }[intent]
+        
+        # Logical Operations
+        elif intent in ["And", "Or"]:
+            bool1 = random.choice([True, False])
+            bool2 = random.choice([True, False])
+            input_text = template.format(str(bool1).lower(), str(bool2).lower())
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"conditions": [bool1, bool2]}
+            ast = {
+                "And": f"and({bool1}, {bool2})",
+                "Or": f"or({bool1}, {bool2})"
+            }[intent]
+            output = {
+                "And": bool1 and bool2,
+                "Or": bool1 or bool2
+            }[intent]
+        
+        elif intent == "Not":
+            bool_val = random.choice([True, False])
+            input_text = template.format(str(bool_val).lower())
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"condition": bool_val}
+            ast = f"not({bool_val})"
+            output = not bool_val
+        
+        # Number Checks
+        elif intent in ["IsEven", "IsOdd", "IsPrime", "IsPerfectSquare"]:
+            num1 = random.randint(1, 100)
+            input_text = template.format(num1)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"number": num1}
+            ast = {
+                "IsEven": f"is_even({num1})",
+                "IsOdd": f"is_odd({num1})",
+                "IsPrime": f"is_prime({num1})",
+                "IsPerfectSquare": f"is_perfect_square({num1})"
+            }[intent]
+            output = {
+                "IsEven": num1 % 2 == 0,
+                "IsOdd": num1 % 2 != 0,
+                "IsPrime": all(num1 % i != 0 for i in range(2, int(math.sqrt(num1)) + 1)) if num1 > 1 else False,
+                "IsPerfectSquare": int(math.sqrt(num1)) ** 2 == num1
+            }[intent]
+        
+        elif intent == "IsDivisible":
+            num1 = random.randint(1, 100)
+            num2 = random.randint(1, 100)
+            input_text = template.format(num1, num2)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"numbers": [num1, num2]}
+            ast = f"is_divisible({num1}, {num2})"
+            output = num1 % num2 == 0 if num2 != 0 else False
+        
+        # Control Flow
+        elif intent in ["If", "IfElse"]:
+            condition = random.choice([f"{random.randint(1, 100)} > {random.randint(1, 100)}", 
+                                    f"{random.randint(1, 100)} < {random.randint(1, 100)}"])
+            action1 = random.choice(["print('true')", f"return {random.randint(1, 100)}"])
+            action2 = random.choice(["print('false')", f"return {random.randint(1, 100)}"]) if intent == "IfElse" else ""
+            input_text = template.format(condition, action1, action2) if intent == "IfElse" else template.format(condition, action1)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"condition": condition, "action1": action1} if intent == "If" else {"condition": condition, "action1": action1, "action2": action2}
+            ast = f"if({condition}, {action1})" if intent == "If" else f"if_else({condition}, {action1}, {action2})"
+            output = f"Executes {action1}" if eval(condition.split()[0] + condition.split()[1] + condition.split()[2]) else f"Executes {action2}" if intent == "IfElse" else "No action"
+        
+        elif intent == "Ternary":
+            condition = random.choice([f"{random.randint(1, 100)} > {random.randint(1, 100)}", 
+                                    f"{random.randint(1, 100)} < {random.randint(1, 100)}"])
+            value1 = random.randint(1, 100)
+            value2 = random.randint(1, 100)
+            input_text = template.format(condition, value1, value2)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"condition": condition, "value1": value1, "value2": value2}
+            ast = f"ternary({condition}, {value1}, {value2})"
+            output = value1 if eval(condition.split()[0] + condition.split()[1] + condition.split()[2]) else value2
+        
+        # Loops
+        elif intent == "ForLoop":
+            start = random.randint(1, 10)
+            end = random.randint(start + 1, 20)
+            action = random.choice(["print(i)", f"sum += {random.randint(1, 10)}"])
+            input_text = template.format(start, end, action)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"start": start, "end": end, "action": action}
+            ast = f"for_loop({start}, {end}, {action})"
+            output = f"Executes {action} from {start} to {end}"
+        
+        elif intent == "WhileLoop":
+            condition = random.choice([f"i < {random.randint(5, 15)}", f"count <= {random.randint(5, 15)}"])
+            action = random.choice(["print(i)", "i += 1"])
+            input_text = template.format(condition, action)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"condition": condition, "action": action}
+            ast = f"while_loop({condition}, {action})"
+            output = f"Executes {action} while {condition}"
+        
+        elif intent in ["Break", "Continue"]:
+            input_text = template
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {}
+            ast = intent.lower()
+            output = intent
+        
+        elif intent == "Return":
+            value = random.randint(1, 100)
+            input_text = template.format(value)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value}
+            ast = f"return({value})"
+            output = value
+        
+        elif intent == "FunctionCall":
+            func_name = random.choice(["add", "multiply", "max"])
+            params = f"{random.randint(1, 100)}, {random.randint(1, 100)}"
+            input_text = template.format(func_name, params)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"function": func_name, "params": params}
+            ast = f"{func_name}({params})"
+            output = f"Calls {func_name} with {params}"
+        
+        elif intent == "Print":
+            value = random.choice([f'"{random.choice(["hello", "world", "test"])}"', random.randint(1, 100)])
+            input_text = template.format(value)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value}
+            ast = f"print({value})"
+            output = f"Prints {value}"
+        
+        elif intent == "Read":
+            input_text = template
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {}
+            ast = "read()"
+            output = "Reads input"
+        
+        elif intent in ["SumEvens", "SumOdds"]:
+            start = random.randint(1, 10)
+            end = random.randint(start + 1, 20)
+            input_text = template.format(start, end)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"start": start, "end": end}
+            ast = f"sum_{'evens' if intent == 'SumEvens' else 'odds'}({start}, {end})"
+            numbers = range(start, end + 1)
+            output = sum(num for num in numbers if num % 2 == (0 if intent == "SumEvens" else 1))
+        
+        # List Operations
+        elif intent == "ListAppend":
+            value = random.randint(1, 100)
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(value, list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "list": list_name}
+            ast = f"{list_name}.append({value})"
+            output = f"Appends {value} to {list_name}"
+        
+        elif intent == "ListRemove":
+            value = random.randint(1, 100)
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(value, list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "list": list_name}
+            ast = f"{list_name}.remove({value})"
+            output = f"Removes {value} from {list_name}"
+        
+        elif intent == "ListLength":
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name}
+            ast = f"len({list_name})"
+            output = f"Length of {list_name}"
+        
+        elif intent == "ListSort":
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name}
+            ast = f"{list_name}.sort()"
+            output = f"Sorts {list_name} in ascending order"
+        
+        elif intent == "ListReverse":
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name}
+            ast = f"{list_name}.reverse()"
+            output = f"Reverses {list_name}"
+        
+        elif intent == "ListContains":
+            value = random.randint(1, 100)
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(list_name, value)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name, "value": value}
+            ast = f"{value} in {list_name}"
+            output = f"Checks if {value} is in {list_name}"
+        
+        elif intent == "ListIndex":
+            value = random.randint(1, 100)
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(value, list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "list": list_name}
+            ast = f"{list_name}.index({value})"
+            output = f"Index of {value} in {list_name}"
+        
+        elif intent == "ListSlice":
+            list_name = random.choice(["my_list", "numbers", "data"])
+            start = random.randint(0, 5)
+            end = random.randint(start + 1, 10)
+            input_text = template.format(list_name, start, end)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name, "start": start, "end": end}
+            ast = f"{list_name}[{start}:{end}]"
+            output = f"Slice of {list_name} from {start} to {end}"
+        
+        # Linked List Operations
+        elif intent == "AddLinkedLists":
+            list1 = random.choice(["list1", "numbers1", "data1"])
+            list2 = random.choice(["list2", "numbers2", "data2"])
+            input_text = template.format(list1, list2)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list1": list1, "list2": list2}
+            ast = f"add_linked_lists({list1}, {list2})"
+            output = f"Adds linked lists {list1} and {list2}"
+        
+        elif intent == "ReverseLinkedList":
+            list_name = random.choice(["list1", "numbers", "data"])
+            input_text = template.format(list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name}
+            ast = f"reverse_linked_list({list_name})"
+            output = f"Reverses linked list {list_name}"
+        
+        elif intent == "LinkedListLength":
+            list_name = random.choice(["list1", "numbers", "data"])
+            input_text = template.format(list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name}
+            ast = f"len_linked_list({list_name})"
+            output = f"Length of linked list {list_name}"
+        
+        elif intent == "LinkedListInsert":
+            value = random.randint(1, 100)
+            list_name = random.choice(["list1", "numbers", "data"])
+            position = random.randint(0, 5)
+            input_text = template.format(value, list_name, position)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "list": list_name, "position": position}
+            ast = f"insert_linked_list({list_name}, {value}, {position})"
+            output = f"Inserts {value} into linked list {list_name} at position {position}"
+        
+        # String Operations
+        elif intent == "StringConcat":
+            str1 = random.choice(["hello", "world", "test"])
+            str2 = random.choice(["code", "data", "string"])
+            input_text = template.format(f'"{str1}"', f'"{str2}"')
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"string1": str1, "string2": str2}
+            ast = f"concat({str1}, {str2})"
+            output = str1 + str2
+        
+        elif intent == "StringLength":
+            string = random.choice(["hello", "world", "test"])
+            input_text = template.format(f'"{string}"')
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"string": string}
+            ast = f"len({string})"
+            output = len(string)
+        
+        elif intent == "StringSubstring":
+            string = random.choice(["hello", "world", "testing"])
+            start = random.randint(0, len(string) - 2)
+            end = random.randint(start + 1, len(string))
+            input_text = template.format(f'"{string}"', start, end)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"string": string, "start": start, "end": end}
+            ast = f"substring({string}, {start}, {end})"
+            output = string[start:end]
+        
+        elif intent == "StringUpper":
+            string = random.choice(["hello", "world", "test"])
+            input_text = template.format(f'"{string}"')
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"string": string}
+            ast = f"upper({string})"
+            output = string.upper()
+        
+        elif intent == "StringLower":
+            string = random.choice(["HELLO", "WORLD", "TEST"])
+            input_text = template.format(f'"{string}"')
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"string": string}
+            ast = f"lower({string})"
+            output = string.lower()
+        
+        elif intent == "StringContains":
+            string = random.choice(["hello world", "test case", "python code"])
+            substring = random.choice([string[:3], string[-3:]])
+            input_text = template.format(f'"{string}"', f'"{substring}"')
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"string": string, "substring": substring}
+            ast = f"contains({string}, {substring})"
+            output = substring in string
+        
+        # Advanced Operations
+        elif intent == "Fibonacci":
+            n = random.randint(1, 10)
+            input_text = template.format(n)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"n": n}
+            ast = f"fibonacci({n})"
+            fib = [0, 1]
+            for i in range(2, n + 1):
+                fib.append(fib[i-1] + fib[i-2])
+            output = fib[n] if n >= 0 else 0
+        
+        elif intent == "BinarySearch":
+            value = random.randint(1, 100)
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(value, list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "list": list_name}
+            ast = f"binary_search({list_name}, {value})"
+            output = f"Searches for {value} in {list_name}"
+        
+        elif intent in ["GraphDFS", "GraphBFS"]:
+            graph_name = random.choice(["graph1", "network", "data"])
+            node = random.randint(1, 10)
+            input_text = template.format(graph_name, node)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"graph": graph_name, "node": node}
+            ast = f"{'dfs' if intent == 'GraphDFS' else 'bfs'}({graph_name}, {node})"
+            output = f"Performs {'DFS' if intent == 'GraphDFS' else 'BFS'} on {graph_name} starting at {node}"
+        
+        elif intent in ["SortQuick", "SortMerge"]:
+            list_name = random.choice(["my_list", "numbers", "data"])
+            input_text = template.format(list_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"list": list_name}
+            ast = f"{'quicksort' if intent == 'SortQuick' else 'mergesort'}({list_name})"
+            output = f"Sorts {list_name} using {'quicksort' if intent == 'SortQuick' else 'mergesort'}"
+        
+        elif intent == "HashSetAdd":
+            value = random.randint(1, 100)
+            set_name = random.choice(["my_set", "numbers", "data"])
+            input_text = template.format(value, set_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "set": set_name}
+            ast = f"{set_name}.add({value})"
+            output = f"Adds {value} to hash set {set_name}"
+        
+        elif intent == "HashSetContains":
+            value = random.randint(1, 100)
+            set_name = random.choice(["my_set", "numbers", "data"])
+            input_text = template.format(set_name, value)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"set": set_name, "value": value}
+            ast = f"{value} in {set_name}"
+            output = f"Checks if {value} is in hash set {set_name}"
+        
+        elif intent == "StackPush":
+            value = random.randint(1, 100)
+            stack_name = random.choice(["my_stack", "numbers", "data"])
+            input_text = template.format(value, stack_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "stack": stack_name}
+            ast = f"{stack_name}.push({value})"
+            output = f"Pushes {value} onto stack {stack_name}"
+        
+        elif intent == "StackPop":
+            stack_name = random.choice(["my_stack", "numbers", "data"])
+            input_text = template.format(stack_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"stack": stack_name}
+            ast = f"{stack_name}.pop()"
+            output = f"Pops from stack {stack_name}"
+        
+        elif intent == "QueueEnqueue":
+            value = random.randint(1, 100)
+            queue_name = random.choice(["my_queue", "numbers", "data"])
+            input_text = template.format(value, queue_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"value": value, "queue": queue_name}
+            ast = f"{queue_name}.enqueue({value})"
+            output = f"Enqueues {value} into queue {queue_name}"
+        
+        elif intent == "QueueDequeue":
+            queue_name = random.choice(["my_queue", "numbers", "data"])
+            input_text = template.format(queue_name)
+            tokenized = [f"{token.text}:{token.pos_}" for token in nlp(input_text.lower())]
+            parameters = {"queue": queue_name}
+            ast = f"{queue_name}.dequeue()"
+            output = f"Dequeues from queue {queue_name}"
+        
+        # Augment the input text
+        augmented_texts = augment_text(input_text)
+        for aug_text in augmented_texts:
+            examples.append({
+                "intent": intent,
+                "input": aug_text,
+                "tokenized": [f"{token.text}:{token.pos_}" for token in nlp(aug_text.lower())],
+                "parameters": parameters,
+                "ast": ast,
+                "output": output
+            })
+    
+    return examples
+
+def save_examples(examples, output_file="math_examples.json"):
+    with open(output_file, "w") as f:
+        json.dump(examples, f, indent=2)
+
+if __name__ == "__main__":
+    examples = generate_examples()
+    save_examples(examples)
+    print(f"Generated and saved {len(examples)} examples to math_examples.json")
+
+
+scripts/convert_manual_data.py
+import pandas as pd
+import json
+import spacy
+import os
+
+nlp = spacy.load("en_core_web_sm")
+
+def process_manual_data(input_csv, output_parquet):
+    df = pd.read_csv(input_csv)
+    df["tokenized"] = df["input"].apply(lambda x: [f"{token.text}:{token.pos_}" for token in nlp(x.lower())])
+    df["parameters"] = df["parameters"].apply(lambda x: json.dumps(eval(x)) if isinstance(x, str) else json.dumps(x))
+    df.to_parquet(output_parquet, index=False)
+    print(f"Converted {len(df)} manual examples to {output_parquet}")
+
+if __name__ == "__main__":
+    input_csv = "data/raw/manual_data.csv"
+    output_parquet = "data/processed/manual_data.parquet"
+    process_manual_data(input_csv, output_parquet)
+
+
+scipts/evaluate.py
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.utils.logging import setup_logging
+from src.nlu.model import EngModel
+from src.nlu.tokenizer import Tokenizer
+from src.executor.executor import Interpreter
+import pandas as pd
+import pyarrow.parquet as pq
+import json
+
+logger = setup_logging()
+
+def main():
+    data_path = os.path.join("data", "processed", "eng_dataset.parquet")
+    if not os.path.exists(data_path):
+        logger.error(f"Dataset not found at {data_path}")
+        sys.exit(1)
+
+    model = EngModel()
+    tokenizer = Tokenizer()
+    interpreter = Interpreter()
+
+    df = pq.read_table(data_path).to_pandas()
+    df['parameters'] = df['parameters'].apply(json.loads)
+    df['output'] = df['output'].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+
+    correct = 0
+    total = 0
+    for _, row in df.iterrows():
+        prediction = model.predict(row['input'], tokenizer)
+        if prediction['intent'] == row['intent']:
+            try:
+                output = interpreter.execute(prediction['intent'], prediction['params'])
+                if output == row['output']:
+                    correct += 1
+            except:
+                pass
+        total += 1
+
+    accuracy = correct / total if total > 0 else 0
+    logger.info(f"Evaluation Accuracy: {accuracy:.4f}")
+
+if __name__ == "__main__":
+    main()
+
+sripts/generate_data.py
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.utils.logging import setup_logging
+from data.synthetic.generate_data import DatasetGenerator
+
+logger = setup_logging()
+
+def main():
+    output_path = os.path.join("data", "processed", "eng_dataset.parquet")
+    generator = DatasetGenerator()
+    generator.generate_dataset(num_examples=1000000, output_path=output_path)
+
+if __name__ == "__main__":
+    main()
+
+
+scripts/merge_data.py
+import pandas as pd
+import os
+
+def merge_datasets(synthetic_path, manual_path, output_path):
+    synthetic_df = pd.read_parquet(synthetic_path)
+    manual_df = pd.read_parquet(manual_path)
+    final_df = pd.concat([synthetic_df, manual_df], ignore_index=True)
+    final_df = final_df.drop_duplicates(subset=["input"])
+    if final_df.isnull().any().any():
+        print("Warning: Missing values found in dataset")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    final_df.to_parquet(output_path, index=False)
+    print(f"Merged {len(final_df)} examples into {output_path}")
+
+if __name__ == "__main__":
+    merge_datasets(
+        "data/processed/synthetic_data.parquet",
+        "data/processed/manual_data.parquet",
+        "data/processed/final_data.parquet"
+    )
+
+
+scripts/train.py
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.utils.logging import setup_logging
+from src.nlu.model import EngModel
+from src.nlu.trainer import Trainer
+
+logger = setup_logging()
+
+def main():
+    data_path = os.path.join("data", "processed", "eng_dataset.parquet")
+    if not os.path.exists(data_path):
+        logger.error(f"Dataset not found at {data_path}. Run generate_data.py first.")
+        sys.exit(1)
+
+    model = EngModel()
+    trainer = Trainer(model)
+    trainer.train(data_path=data_path, epochs=50, batch_size=32, validation_split=0.2)
+
+if __name__ == "__main__":
+    main()
+
+
+src/memory/feedback.py
+from src.memory.memory import Memory
+from src.utils.logging import logger
+
+class FeedbackSystem:
+    def __init__(self):
+        self.memory = Memory()
+    
+    def add_feedback(self, input_text, intent, parameters, output, is_correct):
+        self.memory.add(input_text, intent, parameters, output)
+        if not is_correct:
+            logger.warning(f"Incorrect output for: {input_text}, intent: {intent}")
+            # Placeholder for model retraining
+            logger.info("Feedback noted for retraining")
+    
+    def get_similar_examples(self, input_text, k=5):
+        return self.memory.search(input_text, k)
+
+if __name__ == "__main__":
+    feedback = FeedbackSystem()
+    feedback.add_feedback("Add 4 and 5", "Add", {"numbers": [4, 5]}, 9, True)
+    similar = feedback.get_similar_examples("Sum 4 plus 5")
+    print(similar)
+
+
+src/memory/memory.py
+import faiss
+import numpy as np
+from transformers import T5Tokenizer
+from src.utils.logging import logger
+
+class Memory:
+    def __init__(self, model_name="t5-small"):
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
+        self.index = faiss.IndexFlatL2(512)  # Assuming T5-small embedding size
+        self.memory = []
+    
+    def add(self, input_text, intent, parameters, output):
+        encoding = self.tokenizer(input_text, return_tensors="pt", padding=True, truncation=True)
+        embedding = encoding["input_ids"].numpy().mean(axis=1).astype(np.float32)
+        self.index.add(embedding)
+        self.memory.append({"input": input_text, "intent": intent, "parameters": parameters, "output": output})
+        logger.info(f"Added memory: {input_text}")
+
+    def search(self, input_text, k=5):
+        encoding = self.tokenizer(input_text, return_tensors="pt", padding=True, truncation=True)
+        embedding = encoding["input_ids"].numpy().mean(axis=1).astype(np.float32)
+        distances, indices = self.index.search(embedding, k)
+        results = [self.memory[i] for i in indices[0] if i < len(self.memory)]
+        logger.info(f"Searched memory for: {input_text}, found {len(results)} matches")
+        return results
+
+    def save(self, path="memory/memory.faiss"):
+        faiss.write_index(self.index, path)
+        with open(path + ".meta", "w") as f:
+            import json
+            json.dump(self.memory, f)
+        logger.info(f"Saved memory to {path}")
+
+    def load(self, path="memory/memory.faiss"):
+        self.index = faiss.read_index(path)
+        with open(path + ".meta", "r") as f:
+            import json
+            self.memory = json.load(f)
+        logger.info(f"Loaded memory from {path}")
+
+src/nlu/model.py
+import torch
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+
+class ENGModel:
+    def __init__(self, model_name="t5-small", device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.device = device
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
+        self.model = T5ForConditionalGeneration.from_pretrained(model_name).to(device)
+        self.model.eval()
+
+    def predict(self, input_text):
+        input_text = input_text.lower()
+        inputs = self.tokenizer(input_text, return_tensors="pt", padding=True, truncation=True).to(self.device)
+        outputs = self.model.generate(
+            inputs["input_ids"],
+            max_length=50,
+            num_beams=5,
+            early_stopping=True
+        )
+        decoded_output = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return decoded_output
+
+    def fine_tune(self, train_data, epochs=3, batch_size=8, learning_rate=2e-5):
+        self.model.train()
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=learning_rate)
+        for epoch in range(epochs):
+            for i in range(0, len(train_data), batch_size):
+                batch = train_data[i:i + batch_size]
+                inputs = self.tokenizer(
+                    [ex["input"] for ex in batch],
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True
+                ).to(self.device)
+                outputs = self.tokenizer(
+                    [ex["ast"] for ex in batch],
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True
+                ).to(self.device)
+                loss = self.model(
+                    input_ids=inputs["input_ids"],
+                    attention_mask=inputs["attention_mask"],
+                    labels=outputs["input_ids"]
+                ).loss
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+            print(f"Epoch {epoch + 1}/{epochs} completed")
+        self.model.eval()
+
+src/nlu/tokenizer.py
+import spacy
+import json
+
+class ENGTokenizer:
+    def __init__(self):
+        self.nlp = spacy.load("en_core_web_sm")
+
+    def tokenize(self, text):
+        doc = self.nlp(text.lower())
+        return [f"{token.text}:{token.pos_}" for token in doc]
+
+    def extract_intent_and_parameters(self, text, model_output):
+        tokens = self.tokenize(text)
+        try:
+            intent, params = model_output.split("(", 1)
+            params = params.rstrip(")")
+            parameters = {}
+            if params:
+                if intent in ["Add", "Subtract", "Multiply", "Divide", "Modulus", "Power", "Max", "Min", "GCD", "LCM", "GreaterThan", "LessThan", "Equal", "NotEqual", "GreaterOrEqual", "LessOrEqual"]:
+                    numbers = [int(x) for x in params.split(",") if x.strip().isdigit()]
+                    parameters["numbers"] = numbers
+                elif intent in ["SquareRoot", "Factorial", "IsEven", "IsOdd", "IsPrime", "IsPerfectSquare"]:
+                    parameters["number"] = int(params) if params.strip().isdigit() else params
+                elif intent in ["Mean", "Median", "StandardDeviation"]:
+                    parameters["numbers"] = json.loads(params)
+                elif intent in ["And", "Or"]:
+                    parameters["conditions"] = [x.strip() == "true" for x in params.split(",")]
+                elif intent == "Not":
+                    parameters["condition"] = params.strip() == "true"
+                elif intent == "IsDivisible":
+                    numbers = [int(x) for x in params.split(",") if x.strip().isdigit()]
+                    parameters["numbers"] = numbers
+                elif intent in ["If", "IfElse"]:
+                    condition, *actions = params.split(",")
+                    parameters["condition"] = condition.strip()
+                    parameters["action_true"] = actions[0].strip() if actions else ""
+                    if intent == "IfElse":
+                        parameters["action_false"] = actions[1].strip() if len(actions) > 1 else ""
+                elif intent == "Ternary":
+                    condition, value1, value2 = params.split(",")
+                    parameters["condition"] = condition.strip()
+                    parameters["value_true"] = value1.strip()
+                    parameters["value_false"] = value2.strip()
+                elif intent in ["ForLoop", "WhileLoop"]:
+                    if intent == "ForLoop":
+                        start, end, action = params.split(",", 2)
+                        parameters["range"] = [int(start.strip()), int(end.strip())]
+                        parameters["action"] = action.strip()
+                    else:
+                        condition, action = params.split(",", 1)
+                        parameters["condition"] = condition.strip()
+                        parameters["action"] = action.strip()
+                elif intent in ["ListAppend", "ListRemove", "ListContains", "ListIndex"]:
+                    element, list_name = params.split(",", 1)
+                    parameters["element"] = element.strip()
+                    parameters["list"] = list_name.strip()
+                elif intent in ["ListLength", "ListSort", "ListReverse"]:
+                    parameters["list"] = params.strip()
+                elif intent == "ListSlice":
+                    list_name, start, end = params.split(",", 2)
+                    parameters["list"] = list_name.strip()
+                    parameters["start"] = int(start.strip())
+                    parameters["end"] = int(end.strip())
+                elif intent == "AddLinkedLists":
+                    parameters["lists"] = params.split(",")
+                elif intent in ["ReverseLinkedList", "LinkedListLength"]:
+                    parameters["list"] = params.strip()
+                elif intent == "LinkedListInsert":
+                    element, list_name, position = params.split(",", 2)
+                    parameters["element"] = element.strip()
+                    parameters["list"] = list_name.strip()
+                    parameters["position"] = int(position.strip())
+                elif intent in ["StringConcat", "StringContains"]:
+                    str1, str2 = params.split(",", 1)
+                    parameters["strings"] = [str1.strip(), str2.strip()]
+                elif intent in ["StringLength", "StringUpper", "StringLower"]:
+                    parameters["string"] = params.strip()
+                elif intent == "StringSubstring":
+                    text, start, end = params.split(",", 2)
+                    parameters["string"] = text.strip()
+                    parameters["start"] = int(start.strip())
+                    parameters["end"] = int(end.strip())
+                elif intent == "Fibonacci":
+                    parameters["number"] = int(params.strip())
+                elif intent == "BinarySearch":
+                    element, list_name = params.split(",", 1)
+                    parameters["element"] = element.strip()
+                    parameters["list"] = list_name.strip()
+                elif intent in ["GraphDFS", "GraphBFS"]:
+                    graph, start = params.split(",", 1)
+                    parameters["graph"] = graph.strip()
+                    parameters["start"] = int(start.strip())
+                elif intent in ["SortQuick", "SortMerge"]:
+                    parameters["list"] = params.strip()
+                elif intent == "TryCatch":
+                    action, catch_action = params.split(",", 1)
+                    parameters["action"] = action.strip()
+                    parameters["catch"] = catch_action.strip()
+                elif intent in ["HashSetAdd", "HashSetContains"]:
+                    element, set_name = params.split(",", 1)
+                    parameters["element"] = element.strip()
+                    parameters["set"] = set_name.strip()
+                elif intent in ["StackPush", "QueueEnqueue"]:
+                    element, structure = params.split(",", 1)
+                    parameters["element"] = element.strip()
+                    parameters[("stack" if intent == "StackPush" else "queue")] = structure.strip()
+                elif intent in ["StackPop", "QueueDequeue"]:
+                    parameters[("stack" if intent == "StackPop" else "queue")] = params.strip()
+                elif intent == "Return":
+                    parameters["value"] = params.strip()
+                elif intent == "FunctionCall":
+                    func_name, params_list = params.split(",", 1)
+                    parameters["function"] = func_name.strip()
+                    parameters["parameters"] = params_list.strip()
+                elif intent == "Print":
+                    parameters["text"] = params.strip()
+                elif intent == "Read":
+                    parameters = {}
+                elif intent in ["Break", "Continue"]:
+                    parameters = {}
+            return {"intent": intent, "parameters": parameters, "tokens": tokens}
+        except Exception as e:
+            return {"intent": "Unknown", "parameters": {}, "tokens": tokens, "error": str(e)}
+
+
+src/nlu/trainer.py
+import pandas as pd
+import torch
+from torch.utils.data import Dataset, DataLoader
+from transformers import T5Tokenizer
+from src.nlu.model import ENGModel
+from src.utils.logging import logger
+
+class ENGDataset(Dataset):
+    def __init__(self, data_path, tokenizer_name="t5-small"):
+        self.data = pd.read_parquet(data_path)
+        self.tokenizer = T5Tokenizer.from_pretrained(tokenizer_name)
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        item = self.data.iloc[idx]
+        input_text = item["input"]
+        target_text = item["ast"]
+        input_encoding = self.tokenizer(input_text, padding="max_length", max_length=128, truncation=True, return_tensors="pt")
+        target_encoding = self.tokenizer(target_text, padding="max_length", max_length=128, truncation=True, return_tensors="pt")
+        return {
+            "input_ids": input_encoding["input_ids"].squeeze(),
+            "attention_mask": input_encoding["attention_mask"].squeeze(),
+            "labels": target_encoding["input_ids"].squeeze()
+        }
+
+def train_model(model, data_path, epochs=3, batch_size=8, learning_rate=2e-5):
+    dataset = ENGDataset(data_path)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    optimizer = torch.optim.AdamW(model.model.parameters(), lr=learning_rate)
+    model.model.train()
+    
+    for epoch in range(epochs):
+        total_loss = 0
+        for batch in dataloader:
+            input_ids = batch["input_ids"].to(model.device)
+            attention_mask = batch["attention_mask"].to(model.device)
+            labels = batch["labels"].to(model.device)
+            outputs = model.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
+            total_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+        avg_loss = total_loss / len(dataloader)
+        logger.info(f"Epoch {epoch + 1}/{epochs}, Average Loss: {avg_loss:.4f}")
+    
+    model.model.eval()
+    model.model.save_pretrained("models/eng_model")
+    dataset.tokenizer.save_pretrained("models/eng_tokenizer")
+    logger.info("Model and tokenizer saved to models/")
+
+if __name__ == "__main__":
+    model = ENGModel()
+    train_model(model, "data/processed/final_data.parquet")
+
+
+src/ui/ui.py
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.utils.logging import setup_logging
+from src.nlu.tokenizer import Tokenizer
+from src.nlu.model import EngModel
+from src.executor import Interpreter
+
+logger = setup_logging()
+
+def main():
+    tokenizer = Tokenizer()
+    model = EngModel()
+    interpreter = Interpreter()
+
+    print("ENG Programming Language Interface")
+    print("Type 'exit' to quit")
+    
+    while True:
+        try:
+            user_input = input("ENG>").strip()
+            if user_input.lower() == 'exit':
+                print("Exiting ENG interface")
+                break
+            
+            if not user_input:
+                print("Please enter a valid command")
+                continue
+
+            # Log the input
+            logger.info(f"Received user input: {user_input}")
+
+            # Tokenize input
+            tokenized_input = tokenizer.tokenize(user_input)
+            logger.debug(f"Tokenized input: {tokenized_input}")
+
+            # Predict intent and parameters
+            prediction = model.predict(user_input, tokenizer)
+            intent = prediction['intent']
+            params = prediction['params']
+            logger.info(f"Predicted intent: {intent}, Parameters: {params}")
+
+            # Execute command
+            result = interpreter.execute(intent, params)
+            logger.info(f"Execution result: {result}")
+
+            # Display result to user
+            print(f"Result: {result}")
+
+        except KeyboardInterrupt:
+            print("\nExiting ENG interface")
+            break
+
+        except Exception as e:
+            logger.error(f"Error processing command: {str(e)}")
+            print(f"Error: {str(e)}")
+
+if __name__ == "__main__":
+    main()
+
+
+src/utils/data_augementation.py
+import spacy
+import nltk
+from nltk.corpus import wordnet
+import random
+
+try:
+    nltk.data.find('wordnet')
+except LookupError:
+    nltk.download('wordnet')
+
+nlp = spacy.load("en_core_web_sm")
+
+def get_synonyms(word):
+    synonyms = set()
+    for syn in wordnet.synsets(word):
+        for lemma in syn.lemmas():
+            synonym = lemma.name().lower()
+            if synonym != word and "_" not in synonym:
+                synonyms.add(synonym)
+    return list(synonyms)[:5]
+
+def augment_text(text, probability=0.4):
+    doc = nlp(text.lower())
+    words = [token.text for token in doc]
+    for i, word in enumerate(words):
+        if random.random() < probability and not word.isdigit():
+            synonyms = get_synonyms(word)
+            if synonyms:
+                words[i] = random.choice(synonyms)
+    
+    # Structural variations for advanced English
+    if random.random() < 0.3:
+        if any(w in text.lower() for w in ["add", "sum"]):
+            words = f"Please compute the sum of {words[1]} and {words[-1]}".split()
+        elif any(w in text.lower() for w in ["print", "display", "show"]):
+            words = f"Kindly output the value {words[-1]}".split()
+        elif "even" in text.lower():
+            if 'from' in words:
+                words = f"Aggregate all even integers from {words[words.index('from')+1]} to {words[-1]}".split()
+            elif 'evens' in words or 'even' in words:
+                # Find the first and last numbers in the list
+                numbers = [w for w in words if w.isdigit()]
+                if len(numbers) >= 2:
+                    words = f"Total even numbers between {numbers[0]} and {numbers[-1]}".split()
+                else:
+                    words = f"Sum even numbers in range {words[-2]} to {words[-1]}".split()
+        elif "odd" in text.lower():
+            if 'from' in words:
+                words = f"Aggregate all odd integers from {words[words.index('from')+1]} to {words[-1]}".split()
+            elif 'odds' in words or 'odd' in words:
+                # Find the first and last numbers in the list
+                numbers = [w for w in words if w.isdigit()]
+                if len(numbers) >= 2:
+                    words = f"Total odd numbers between {numbers[0]} and {numbers[-1]}".split()
+                else:
+                    words = f"Sum odd numbers in range {words[-2]} to {words[-1]}".split()
+        elif any(w in text.lower() for w in ["factorial", "product"]):
+            words = f"Evaluate the product of integers up to {words[-1]}".split()
+        elif any(w in text.lower() for w in ["max", "maximum", "larger"]):
+            if 'of' in words:
+                words = f"Determine the greatest value between {words[words.index('of')+1]} and {words[-1]}".split()
+            else:
+                words = f"Identify the larger value of {words[1]} and {words[-1]}".split()
+        elif any(w in text.lower() for w in ["min", "minimum", "smaller"]):
+            if 'of' in words:
+                words = f"Determine the smallest value between {words[words.index('of')+1]} and {words[-1]}".split()
+            else:
+                words = f"Identify the lesser value of {words[1]} and {words[-1]}".split()
+        elif any(w in text.lower() for w in ["greater", "more", "larger"]):
+            words = f"Verify if {words[1]} surpasses {words[-1]}".split()
+        elif any(w in text.lower() for w in ["less", "smaller", "below"]):
+            words = f"Verify if {words[1]} is below {words[-1]}".split()
+    
+    return " ".join(words)
+
+def augment_example(example):
+    augmented_input = augment_text(example["input"])
+    return {
+        **example,
+        "input": augmented_input,
+        "tokenized": [f"{token.text}:{token.pos_}" for token in nlp(augmented_input.lower())]
+    }
+
+if __name__ == "__main__":
+    example = {
+        "input": "Sum even numbers from 1 to 10",
+        "intent": "SumEvens",
+        "parameters": '{"range": [1, 10], "filter": "even"}',
+        "ast": "sum(filter(even, range(1, 10)))",
+        "output": 30
+    }
+    augmented = augment_example(example)
+    print("Original:", example["input"])
+    print("Augmented:", augmented["input"])
+
+
+src/utils/logging.py
+import logging
+from loguru import logger as loguru_logger
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record):
+        loguru_logger.opt(depth=6).log(record.levelname, record.getMessage())
+
+logging.basicConfig(handlers=[InterceptHandler()], level=0)
+logger = loguru_logger
+logger.add("logs/eng.log", rotation="1 MB", level="INFO")
+
+if __name__ == "__main__":
+    logger.info("Logging initialized")
+    logger.error("This is a test error")
+
+
+
+src/executor.rs
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone)]
+struct Node {
+    val: i32,
+    next: Option<Arc<Mutex<Node>>>,
+}
+
+impl Node {
+    fn new(val: i32) -> Self {
+        Node { val, next: None }
+    }
+}
+
+#[pyclass]
+pub struct Executor {
+    variables: HashMap<String, PyObject>,
+    lists: HashMap<String, Vec<i32>>,
+    linked_lists: HashMap<String, Option<Arc<Mutex<Node>>>>,
+    sets: HashMap<String, HashSet<i32>>,
+    stacks: HashMap<String, Vec<i32>>,
+    queues: HashMap<String, VecDeque<i32>>,
+}
+
+#[pymethods]
+impl Executor {
+    #[new]
+    fn new() -> Self {
+        Executor {
+            variables: HashMap::new(),
+            lists: HashMap::new(),
+            linked_lists: HashMap::new(),
+            sets: HashMap::new(),
+            stacks: HashMap::new(),
+            queues: HashMap::new(),
+        }
+    }
+
+    fn execute(&mut self, intent: &str, params: &PyDict) -> PyResult<PyObject> {
+        Python::with_gil(|py| match intent {
+            "Add" => self.add(py, params),
+            "Subtract" => self.subtract(py, params),
+            "Multiply" => self.multiply(py, params),
+            "Divide" => self.divide(py, params),
+            "Modulus" => self.modulus(py, params),
+            "Power" => self.power(py, params),
+            "SquareRoot" => self.square_root(py, params),
+            "Factorial" => self.factorial(py, params),
+            "GCD" => self.gcd(py, params),
+            "LCM" => self.lcm(py, params),
+            "Max" => self.max(py, params),
+            "Min" => self.min(py, params),
+            "Mean" => self.mean(py, params),
+            "Median" => self.median(py, params),
+            "StandardDeviation" => self.standard_deviation(py, params),
+            "GreaterThan" => self.greater_than(py, params),
+            "LessThan" => self.less_than(py, params),
+            "Equal" => self.equal(py, params),
+            "NotEqual" => self.not_equal(py, params),
+            "GreaterOrEqual" => self.greater_or_equal(py, params),
+            "LessOrEqual" => self.less_or_equal(py, params),
+            "And" => self.and(py, params),
+            "Or" => self.or(py, params),
+            "Not" => self.not(py, params),
+            "IsEven" => self.is_even(py, params),
+            "IsOdd" => self.is_odd(py, params),
+            "IsPrime" => self.is_prime(py, params),
+            "IsPerfectSquare" => self.is_perfect_square(py, params),
+            "IsDivisible" => self.is_divisible(py, params),
+            "If" => self.if_stmt(py, params),
+            "IfElse" => self.if_else(py, params),
+            "Ternary" => self.ternary(py, params),
+            "ForLoop" => self.for_loop(py, params),
+            "WhileLoop" => self.while_loop(py, params),
+            "Break" => self.break_stmt(py),
+            "Continue" => self.continue_stmt(py),
+            "Return" => self.return_stmt(py, params),
+            "FunctionCall" => self.function_call(py, params),
+            "Print" => self.print_stmt(py, params),
+            "Read" => self.read(py),
+            "SumEvens" => self.sum_evens(py, params),
+            "SumOdds" => self.sum_odds(py, params),
+            "ListAppend" => self.list_append(py, params),
+            "ListRemove" => self.list_remove(py, params),
+            "ListLength" => self.list_length(py, params),
+            "ListSort" => self.list_sort(py, params),
+            "ListReverse" => self.list_reverse(py, params),
+            "ListContains" => self.list_contains(py, params),
+            "ListIndex" => self.list_index(py, params),
+            "ListSlice" => self.list_slice(py, params),
+            "AddLinkedLists" => self.add_linked_lists(py, params),
+            "ReverseLinkedList" => self.reverse_linked_list(py, params),
+            "LinkedListLength" => self.linked_list_length(py, params),
+            "LinkedListInsert" => self.linked_list_insert(py, params),
+            "StringConcat" => self.string_concat(py, params),
+            "StringLength" => self.string_length(py, params),
+            "StringSubstring" => self.string_substring(py, params),
+            "StringUpper" => self.string_upper(py, params),
+            "StringLower" => self.string_lower(py, params),
+            "StringContains" => self.string_contains(py, params),
+            "Fibonacci" => self.fibonacci(py, params),
+            "BinarySearch" => self.binary_search(py, params),
+            "GraphDFS" => self.graph_dfs(py, params),
+            "GraphBFS" => self.graph_bfs(py, params),
+            "SortQuick" => self.sort_quick(py, params),
+            "SortMerge" => self.sort_merge(py, params),
+            "TryCatch" => self.try_catch(py, params),
+            "HashSetAdd" => self.hash_set_add(py, params),
+            "HashSetContains" => self.hash_set_contains(py, params),
+            "StackPush" => self.stack_push(py, params),
+            "StackPop" => self.stack_pop(py, params),
+            "QueueEnqueue" => self.queue_enqueue(py, params),
+            "QueueDequeue" => self.queue_dequeue(py, params),
+            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Unknown intent: {}", intent))),
+        })
+    }
+
+    fn add(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] + numbers[1]).to_object(py))
+    }
+
+    fn subtract(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] - numbers[1]).to_object(py))
+    }
+
+    fn multiply(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] * numbers[1]).to_object(py))
+    }
+
+    fn divide(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        if numbers[1] == 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyZeroDivisionError, _>("Division by zero"));
+        }
+        Ok((numbers[0] / numbers[1]).to_object(py))
+    }
+
+    fn modulus(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        if numbers[1] == 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyZeroDivisionError, _>("Modulus by zero"));
+        }
+        Ok((numbers[0] % numbers[1]).to_object(py))
+    }
+
+    fn power(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0].pow(numbers[1] as u32)).to_object(py))
+    }
+
+    fn square_root(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let number: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        if number < 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Square root of negative number"));
+        }
+        Ok((f64::from(number).sqrt() as i32).to_object(py))
+    }
+
+    fn factorial(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let number: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        if number < 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Factorial of negative number"));
+        }
+        let mut result = 1;
+        for i in 1..=number {
+            result *= i;
+        }
+        Ok(result.to_object(py))
+    }
+
+    fn gcd(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        let mut a = numbers[0].abs();
+        let mut b = numbers[1].abs();
+        while b != 0 {
+            let temp = b;
+            b = a % b;
+            a = temp;
+        }
+        Ok(a.to_object(py))
+    }
+
+    fn lcm(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        let gcd = {
+            let mut a = numbers[0].abs();
+            let mut b = numbers[1].abs();
+            while b != 0 {
+                let temp = b;
+                b = a % b;
+                a = temp;
+            }
+            a
+        };
+        if gcd == 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("LCM with zero GCD"));
+        }
+        Ok(((numbers[0] * numbers[1]).abs() / gcd).to_object(py))
+    }
+
+    fn max(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok(numbers.iter().max().unwrap().to_object(py))
+    }
+
+    fn min(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok(numbers.iter().min().unwrap().to_object(py))
+    }
+
+    fn mean(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        let sum: i32 = numbers.iter().sum();
+        Ok((sum as f64 / numbers.len() as f64).to_object(py))
+    }
+
+    fn median(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let mut numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        numbers.sort();
+        if numbers.len() % 2 == 0 {
+            let mid = numbers.len() / 2;
+            Ok(((numbers[mid - 1] + numbers[mid]) as f64 / 2.0).to_object(py))
+        } else {
+            Ok(numbers[numbers.len() / 2].to_object(py))
+        }
+    }
+
+    fn standard_deviation(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        let mean = numbers.iter().sum::<i32>() as f64 / numbers.len() as f64;
+        let variance = numbers.iter().map(|x| (*x as f64 - mean).powi(2)).sum::<f64>() / numbers.len() as f64;
+        Ok(variance.sqrt().to_object(py))
+    }
+
+    fn greater_than(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] > numbers[1]).to_object(py))
+    }
+
+    fn less_than(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] < numbers[1]).to_object(py))
+    }
+
+    fn equal(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] == numbers[1]).to_object(py))
+    }
+
+    fn not_equal(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] != numbers[1]).to_object(py))
+    }
+
+    fn greater_or_equal(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] >= numbers[1]).to_object(py))
+    }
+
+    fn less_or_equal(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        Ok((numbers[0] <= numbers[1]).to_object(py))
+    }
+
+    fn and(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let conditions: Vec<bool> = params.get_item("conditions")?.expect("Missing 'conditions' key").extract()?;
+        Ok((conditions[0] && conditions[1]).to_object(py))
+    }
+
+    fn or(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let conditions: Vec<bool> = params.get_item("conditions")?.expect("Missing 'conditions' key").extract()?;
+        Ok((conditions[0] || conditions[1]).to_object(py))
+    }
+
+    fn not(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let condition: bool = params.get_item("condition")?.expect("Missing 'condition' key").extract()?;
+        Ok((!condition).to_object(py))
+    }
+
+    fn is_even(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let number: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        Ok((number % 2 == 0).to_object(py))
+    }
+
+    fn is_odd(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let number: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        Ok((number % 2 != 0).to_object(py))
+    }
+
+    fn is_prime(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let number: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        if number <= 1 {
+            return Ok(false.to_object(py));
+        }
+        for i in 2..=((number as f64).sqrt() as i32) {
+            if number % i == 0 {
+                return Ok(false.to_object(py));
+            }
+        }
+        Ok(true.to_object(py))
+    }
+
+    fn is_perfect_square(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let number: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        let sqrt = (number as f64).sqrt() as i32;
+        Ok((sqrt * sqrt == number).to_object(py))
+    }
+
+    fn is_divisible(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let numbers: Vec<i32> = params.get_item("numbers")?.expect("Missing 'numbers' key").extract()?;
+        if numbers[1] == 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyZeroDivisionError, _>("Division by zero"));
+        }
+        Ok((numbers[0] % numbers[1] == 0).to_object(py))
+    }
+
+    fn if_stmt(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let condition: String = params.get_item("condition")?.expect("Missing 'condition' key").extract()?;
+        let action: String = params.get_item("action")?.expect("Missing 'action' key").extract()?;
+        Ok(format!("Evaluated if {} then {}", condition, action).to_object(py))
+    }
+
+    fn if_else(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let condition: String = params.get_item("condition")?.expect("Missing 'condition' key").extract()?;
+        let action_true: String = params.get_item("action_true")?.expect("Missing 'action_true' key").extract()?;
+        let action_false: String = params.get_item("action_false")?.expect("Missing 'action_false' key").extract()?;
+        Ok(format!("Evaluated if {} then {} else {}", condition, action_true, action_false).to_object(py))
+    }
+
+    fn ternary(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let condition: String = params.get_item("condition")?.expect("Missing 'condition' key").extract()?;
+        let value_true: i32 = params.get_item("value_true")?.expect("Missing 'value_true' key").extract()?;
+        let value_false: i32 = params.get_item("value_false")?.expect("Missing 'value_false' key").extract()?;
+        Ok(format!("Evaluated {} if {} else {}", value_true, condition, value_false).to_object(py))
+    }
+
+    fn for_loop(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let range: Vec<i32> = params.get_item("range")?.expect("Missing 'range' key").extract()?;
+        let action: String = params.get_item("action")?.expect("Missing 'action' key").extract()?;
+        let mut results = Vec::new();
+        for i in range[0]..=range[1] {
+            results.push(format!("Performed {} with i={}", action, i));
+        }
+        Ok(results.to_object(py))
+    }
+
+    fn while_loop(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let condition: String = params.get_item("condition")?.expect("Missing 'condition' key").extract()?;
+        let action: String = params.get_item("action")?.expect("Missing 'action' key").extract()?;
+        Ok(format!("Looped while {} performing {}", condition, action).to_object(py))
+    }
+
+    fn break_stmt(&self, py: Python) -> PyResult<PyObject> {
+        Ok("Broke loop".to_object(py))
+    }
+
+    fn continue_stmt(&self, py: Python) -> PyResult<PyObject> {
+        Ok("Continued loop".to_object(py))
+    }
+
+    fn return_stmt(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let value: String = params.get_item("value")?.expect("Missing 'value' key").extract()?;
+        Ok(value.to_object(py))
+    }
+
+    fn function_call(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let func_name: String = params.get_item("function")?.expect("Missing 'function' key").extract()?;
+        let parameters: String = params.get_item("parameters")?.expect("Missing 'parameters' key").extract()?;
+        Ok(format!("Called {} with {}", func_name, parameters).to_object(py))
+    }
+
+    fn print_stmt(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let text: String = params.get_item("text")?.expect("Missing 'text' key").extract()?;
+        println!("{}", text);
+        Ok(text.to_object(py))
+    }
+
+    fn read(&self, py: Python) -> PyResult<PyObject> {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+        Ok(input.trim().to_object(py))
+    }
+
+    fn sum_evens(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let range: Vec<i32> = params.get_item("range")?.expect("Missing 'range' key").extract()?;
+        let sum: i32 = (range[0]..=range[1]).filter(|x| x % 2 == 0).sum();
+        Ok(sum.to_object(py))
+    }
+
+    fn sum_odds(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let range: Vec<i32> = params.get_item("range")?.expect("Missing 'range' key").extract()?;
+        let sum: i32 = (range[0]..=range[1]).filter(|x| x % 2 != 0).sum();
+        Ok(sum.to_object(py))
+    }
+
+    fn list_append(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        self.lists.entry(list_name.clone()).or_insert_with(Vec::new).push(element);
+        Ok(format!("Appended {} to {}", element, list_name).to_object(py))
+    }
+
+    fn list_remove(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get_mut(&list_name) {
+            if let Some(idx) = list.iter().position(|x| *x == element) {
+                list.remove(idx);
+                Ok(format!("Removed {} from {}", element, list_name).to_object(py))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Element not found"))
+            }
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn list_length(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get(&list_name) {
+            Ok(list.len().to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn list_sort(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get_mut(&list_name) {
+            list.sort();
+            Ok(format!("Sorted {}", list_name).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn list_reverse(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get_mut(&list_name) {
+            list.reverse();
+            Ok(format!("Reversed {}", list_name).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn list_contains(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get(&list_name) {
+            Ok(list.contains(&element).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn list_index(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get(&list_name) {
+            if let Some(idx) = list.iter().position(|x| *x == element) {
+                Ok(idx.to_object(py))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Element not found"))
+            }
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn list_slice(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        let start: usize = params.get_item("start")?.expect("Missing 'start' key").extract()?;
+        let end: usize = params.get_item("end")?.expect("Missing 'end' key").extract()?;
+        if let Some(list) = self.lists.get(&list_name) {
+            if start <= end && end <= list.len() {
+                Ok(list[start..end].to_vec().to_object(py))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid slice indices"))
+            }
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn add_linked_lists(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let lists: Vec<String> = params.get_item("lists")?.expect("Missing 'lists' key").extract()?;
+        let l1 = self.linked_lists.get(&lists[0]).unwrap();
+        let l2 = self.linked_lists.get(&lists[1]).unwrap();
+        if l1.is_none() {
+            let result = linked_list_to_vec(l2);
+            return Ok(result.to_object(py));
+        }
+        if l2.is_none() {
+            let result = linked_list_to_vec(l1);
+            return Ok(result.to_object(py));
+        }
+        let mut result = Vec::new();
+        let mut carry = 0;
+        let mut p1 = l1.clone();
+        let mut p2 = l2.clone();
+        while p1.is_some() || p2.is_some() || carry != 0 {
+            let x1 = p1.as_ref().map_or(0, |node| node.lock().unwrap().val);
+            let x2 = p2.as_ref().map_or(0, |node| node.lock().unwrap().val);
+            let sum = x1 + x2 + carry;
+            carry = sum / 10;
+            result.push(sum % 10);
+            p1 = p1.and_then(|node| node.lock().unwrap().next.clone());
+            p2 = p2.and_then(|node| node.lock().unwrap().next.clone());
+        }
+        Ok(result.to_object(py))
+    }
+
+    fn reverse_linked_list(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(_list) = self.linked_lists.get_mut(&list_name) {
+            Ok(format!("Reversed linked list {}", list_name).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Linked list not found"))
+        }
+    }
+
+    fn linked_list_length(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.linked_lists.get(&list_name) {
+            let mut len = 0;
+            let mut current = list.clone();
+            while let Some(node) = current {
+                len += 1;
+                current = node.lock().unwrap().next.clone();
+            }
+            Ok(len.to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Linked list not found"))
+        }
+    }
+
+    fn linked_list_insert(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        let position: usize = params.get_item("position")?.expect("Missing 'position' key").extract()?;
+        if let Some(list) = self.linked_lists.get_mut(&list_name) {
+            let new_node = Arc::new(Mutex::new(Node::new(element)));
+            if position == 0 {
+                new_node.lock().unwrap().next = list.clone();
+                *list = Some(new_node);
+            }
+            Ok(format!("Inserted {} into {} at {}", element, list_name, position).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Linked list not found"))
+        }
+    }
+
+    fn string_concat(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let strings: Vec<String> = params.get_item("strings")?.expect("Missing 'strings' key").extract()?;
+        Ok((strings[0].clone() + &strings[1]).to_object(py))
+    }
+
+    fn string_length(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let string: String = params.get_item("string")?.expect("Missing 'string' key").extract()?;
+        Ok(string.len().to_object(py))
+    }
+
+    fn string_substring(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let string: String = params.get_item("string")?.expect("Missing 'string' key").extract()?;
+        let start: usize = params.get_item("start")?.expect("Missing 'start' key").extract()?;
+        let end: usize = params.get_item("end")?.expect("Missing 'end' key").extract()?;
+        if start <= end && end <= string.len() {
+            Ok(string[start..end].to_string().to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid substring indices"))
+        }
+    }
+
+    fn string_upper(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let string: String = params.get_item("string")?.expect("Missing 'string' key").extract()?;
+        Ok(string.to_uppercase().to_object(py))
+    }
+
+    fn string_lower(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let string: String = params.get_item("string")?.expect("Missing 'string' key").extract()?;
+        Ok(string.to_lowercase().to_object(py))
+    }
+
+    fn string_contains(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let strings: Vec<String> = params.get_item("strings")?.expect("Missing 'strings' key").extract()?;
+        Ok(strings[0].contains(&strings[1]).to_object(py))
+    }
+
+    fn fibonacci(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let n: i32 = params.get_item("number")?.expect("Missing 'number' key").extract()?;
+        if n < 0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Negative Fibonacci index"));
+        }
+        let mut fib = vec![0, 1];
+        for i in 2..=n {
+            fib.push(fib[i as usize - 1] + fib[i as usize - 2]);
+        }
+        Ok(fib[n as usize].to_object(py))
+    }
+
+    fn binary_search(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get(&list_name) {
+            let mut left = 0;
+            let mut right = list.len() as i32 - 1;
+            while left <= right {
+                let mid = (left + right) / 2;
+                if list[mid as usize] == element {
+                    return Ok(mid.to_object(py));
+                } else if list[mid as usize] < element {
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+            Ok((-1).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn graph_dfs(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let graph: String = params.get_item("graph")?.expect("Missing 'graph' key").extract()?;
+        let start: i32 = params.get_item("start")?.expect("Missing 'start' key").extract()?;
+        Ok(format!("Performed DFS on {} from {}", graph, start).to_object(py))
+    }
+
+    fn graph_bfs(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let graph: String = params.get_item("graph")?.expect("Missing 'graph' key").extract()?;
+        let start: i32 = params.get_item("start")?.expect("Missing 'start' key").extract()?;
+        Ok(format!("Performed BFS on {} from {}", graph, start).to_object(py))
+    }
+
+    fn sort_quick(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get_mut(&list_name) {
+            list.sort();
+            Ok(format!("Sorted {} with quicksort", list_name).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn sort_merge(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let list_name: String = params.get_item("list")?.expect("Missing 'list' key").extract()?;
+        if let Some(list) = self.lists.get_mut(&list_name) {
+            list.sort();
+            Ok(format!("Sorted {} with mergesort", list_name).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("List not found"))
+        }
+    }
+
+    fn try_catch(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let action: String = params.get_item("action")?.expect("Missing 'action' key").extract()?;
+        let catch_action: String = params.get_item("catch")?.expect("Missing 'catch' key").extract()?;
+        Ok(format!("Tried {}, caught with {}", action, catch_action).to_object(py))
+    }
+
+    fn hash_set_add(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let set_name: String = params.get_item("set")?.expect("Missing 'set' key").extract()?;
+        self.sets.entry(set_name.clone()).or_insert_with(HashSet::new).insert(element);
+        Ok(format!("Added {} to {}", element, set_name).to_object(py))
+    }
+
+    fn hash_set_contains(&self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let set_name: String = params.get_item("set")?.expect("Missing 'set' key").extract()?;
+        if let Some(set) = self.sets.get(&set_name) {
+            Ok(set.contains(&element).to_object(py))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Set not found"))
+        }
+    }
+
+    fn stack_push(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let stack_name: String = params.get_item("stack")?.expect("Missing 'stack' key").extract()?;
+        self.stacks.entry(stack_name.clone()).or_insert_with(Vec::new).push(element);
+        Ok(format!("Pushed {} to {}", element, stack_name).to_object(py))
+    }
+
+    fn stack_pop(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let stack_name: String = params.get_item("stack")?.expect("Missing 'stack' key").extract()?;
+        if let Some(stack) = self.stacks.get_mut(&stack_name) {
+            if let Some(element) = stack.pop() {
+                Ok(element.to_object(py))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Stack is empty"))
+            }
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Stack not found"))
+        }
+    }
+
+    fn queue_enqueue(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let element: i32 = params.get_item("element")?.expect("Missing 'element' key").extract()?;
+        let queue_name: String = params.get_item("queue")?.expect("Missing 'queue' key").extract()?;
+        self.queues.entry(queue_name.clone()).or_insert_with(VecDeque::new).push_back(element);
+        Ok(format!("Enqueued {} to {}", element, queue_name).to_object(py))
+    }
+
+    fn queue_dequeue(&mut self, py: Python, params: &PyDict) -> PyResult<PyObject> {
+        let queue_name: String = params.get_item("queue")?.expect("Missing 'queue' key").extract()?;
+        if let Some(queue) = self.queues.get_mut(&queue_name) {
+            if let Some(element) = queue.pop_front() {
+                Ok(element.to_object(py))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Queue is empty"))
+            }
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Queue not found"))
+        }
+    }
+}
+
+fn linked_list_to_vec(list: &Option<Arc<Mutex<Node>>>) -> Vec<i32> {
+    let mut result = Vec::new();
+    let mut current = list.clone();
+    while let Some(node) = current {
+        let node = node.lock().unwrap();
+        result.push(node.val);
+        current = node.next.clone();
+    }
+    result
+}
+
+#[pymodule]
+fn executor(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Executor>()?;
+    Ok(())
+}
+
+
+src/ir.rs
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+
+#[derive(Clone)]
+pub enum IRNode {
+    Operation {
+        intent: String,
+        params: Py<PyDict>,
+    },
+    Sequence(Vec<IRNode>),
+}
+
+#[pyclass]
+pub struct IRGenerator {
+    nodes: Vec<IRNode>,
+}
+
+#[pymethods]
+impl IRGenerator {
+    #[new]
+    fn new() -> Self {
+        IRGenerator { nodes: Vec::new() }
+    }
+
+    fn add_operation(&mut self, intent: String, params: &PyDict) {
+        self.nodes.push(IRNode::Operation {
+            intent,
+            params: params.into(),
+        });
+    }
+
+    fn add_sequence(&mut self, sequence: Vec<(String, &PyDict)>) {
+        let nodes = sequence
+            .into_iter()
+            .map(|(intent, params)| IRNode::Operation {
+                intent,
+                params: params.into(),
+            })
+            .collect();
+        self.nodes.push(IRNode::Sequence(nodes));
+    }
+
+    fn generate(&self, _py: Python) -> PyResult<Vec<(String, Py<PyDict>)>> {
+        let mut result = Vec::new();
+        for node in &self.nodes {
+            match node {
+                IRNode::Operation { intent, params } => {
+                    result.push((intent.clone(), params.clone()));
+                }
+                IRNode::Sequence(nodes) => {
+                    for sub_node in nodes {
+                        if let IRNode::Operation { intent, params } = sub_node {
+                            result.push((intent.clone(), params.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(result)
+    }
+}
+
+#[pymodule]
+fn ir(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<IRGenerator>()?;
+    Ok(())
+}
+
+src/lib.rs
+pub mod executor;
+pub mod ir;
+
+
+Caro.toml
+[package]
+name = "eng_executor"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "executor"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+commands.txt 
+# Commands to Run the ENG Project
+# Assumes a Windows environment with Python 3.9+, Rust, and Cargo installed
+# Project directory: C:\Users\DELL\Desktop\THE ENG
+# Structure includes src/, scripts/, data/, tests/, and a virtual environment (venv)
+
+# Navigate to project directory
+cd C:\Users\DELL\Desktop\THE ENG
+
+# 1. Set Up Virtual Environment
+# Create virtual environment if not already created
+python -m venv venv
+
+# Activate virtual environment
+venv\Scripts\activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+pip install torch transformers datasets spacy nltk
+
+# Download SpaCy model for NLU processing
+python -m spacy download en_core_web_sm
+
+# Download NLTK WordNet data for synonym augmentation
+python -m nltk.downloader wordnet
+
+# 2. Build Rust Executor
+# Compile the Rust library (eng_executor)
+cargo build --release
+
+# Ensure the compiled DLL is accessible to Python
+# Copy eng_executor.dll to project root or add target\release to PYTHONPATH
+copy target\release\eng_executor.dll .
+
+# 3. Generate Synthetic Data (Day 1–2)
+# Run script to generate initial synthetic dataset
+python .\scripts\generate_data.py
+
+# 4. Test Data Augmentation (Day 3)
+# Run data augmentation to expand dataset with synonyms and paraphrases
+python .\src\utils\data_augmentation.py
+
+# 5. Convert Manual Data (Day 4–6)
+# Run after adding manual examples to data/raw/manual_data.csv
+python .\scripts\convert_manual_data.py
+
+# 6. Merge Data (Day 7)
+# Combine synthetic and manual datasets into final dataset
+python .\scripts\merge_data.py
+
+# 7. Train the NLU Model
+# Train the transformer-based NLU model (assumes train.py in scripts/)
+python .\scripts\train.py \
+  --model_name_or_path bert-base-uncased \
+  --dataset_path data/processed/final_dataset.parquet \
+  --output_dir .\model_output \
+  --do_train \
+  --num_train_epochs 3 \
+  --per_device_train_batch_size 16 \
+  --learning_rate 2e-5 \
+  --save_strategy epoch \
+  --logging_steps 100
+
+# 8. Run the ENG UI
+# Execute the UI to interact with the ENG language
+python .\src\ui\ui.py
+
+# 9. Run Tests (Optional)
+# Run unit tests to verify functionality
+python -m unittest discover tests
+
+# 10. Example Commands in ENG UI
+# After launching ui.py, you can run commands like:
+# (ENG) run Add 4 and 5
+# (ENG) run ListAppend 42 to my_list
+# (ENG) run LinkedListInsert 1 into list1 at 0
+# (ENG) run LinkedListInsert 2 into list2 at 0
+# (ENG) run AddLinkedLists list1 list2
+
+# 11. Clean Up (Optional)
+# Deactivate virtual environment
+deactivate
+
+# Clean Rust build artifacts
+cargo clean
+
+# Remove Python cache
+del /S /Q __pycache__
+
+# Remove virtual environment (if needed)
+rmdir /S /Q venv
+
+
+pyproject.toml
+[project]
+name = "eng"
+version = "0.1.0"
+dependencies = [
+    "transformers>=4.30.0",
+    "spacy>=3.5.0",
+    "nltk>=3.8.0",
+    "pandas>=2.0.0",
+    "pyarrow>=12.0.0",
+    "faiss-cpu>=1.7.0",
+    "loguru>=0.7.0",
+    "torch>=2.0.0",
+    "pyo3>=0.20.0",
+]
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.setuptools.package-data]
+"src" = ["*.py"]
+
+requirements.txt
+transformers>=4.30.0
+spacy>=3.5.0
+nltk>=3.8.0
+pandas>=2.0.0
+pyarrow>=12.0.0
+faiss-cpu>=1.7.0
+loguru>=0.7.0
+torch>=2.0.0
+
