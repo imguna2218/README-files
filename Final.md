@@ -1,4 +1,4 @@
-# README.md: Building evalX on Ubuntu 22.04 LTS to Outperform Judge0
+# Building evalX on Ubuntu 22.04 LTS to Outperform Judge0
 
 Welcome to the **evalX** project! This README provides a complete, step-by-step guide to set up and develop your Rust-based online code evaluation system on Ubuntu 22.04 LTS (dual-boot with Windows). The goal is to optimize for faster compilation, handle 1000+ requests (each with 20 test cases) in ~2s, and scale to 10000 requests without latency spikes, outperforming Judge0 in speed, scalability, and features like AI-powered caching and webhooks.
 
