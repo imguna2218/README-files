@@ -1,8 +1,4 @@
-Of course. Here is the detailed documentation for Phases 2 and 3, including the integration of the Asynchronous (Token-Based) communication model, which is the critical foundation for all scaling efforts.
-
----
-
-# evalX Optimization Plan: Phase 2 - Core Optimizations
+# EvalX Optimization Plan: Phase 2 - Core Optimizations
 
 ## Overview
 Phase 2 focuses on replacing core components to achieve **Judge0-level performance and beyond**. The goal is to reduce latency to **<2s for 1000 requests × 20 test cases** and lay the groundwork for horizontal scaling. This phase introduces the **Isolate sandbox** for near-instant execution and a **proper distributed task queue** to replace the Redis lists from Phase 1.
