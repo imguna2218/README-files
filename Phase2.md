@@ -1,92 +1,55 @@
-# EvalX Optimization Plan: Phase 2 - Core Optimizations
+# **Phase 2: The Quantum Leap – From a Stable Base to a Blazing-Fast Engine**
 
-## Overview
-Phase 2 focuses on replacing core components to achieve **Judge0-level performance and beyond**. The goal is to reduce latency to **<2s for 1000 requests × 20 test cases** and lay the groundwork for horizontal scaling. This phase introduces the **Isolate sandbox** for near-instant execution and a **proper distributed task queue** to replace the Redis lists from Phase 1.
+**Prerequisite:** You have a stable, multi-worker environment running via `docker-compose` (from our revised Step 1.6), and your asynchronous, token-based API is in place.
 
-**Key Goals for Phase 2:**
-- Achieve sub-100ms code execution via Isolate sandboxes.
-- Implement a robust, distributed task queue for fault-tolerant processing.
-- Introduce the Asynchronous (Token-Based) API model.
-- Maintain full backward compatibility with Docker sandboxes as a fallback.
+---
+#### **Step 2.1: Implement the Isolate Sandbox Engine**
 
-## Phase 2 Changes Summary
+* **Goal:** To completely replace the slow Docker execution with the near-instantaneous Isolate sandbox, slashing your processing time by over 90%.
+* **Why It's a Game-Changer:** This is the single most important performance optimization you will make. It directly attacks the **provisioning latency** that is the source of your 8-second execution time. By switching to Isolate, which has a startup time of 1-2 milliseconds, you make the cost of creating a sandbox negligible.
+* **Detailed Changes (What to Do):**
+    1.  **Install Isolate on Ubuntu:** `git clone` the official Isolate repository, run `make`, and then `sudo make install`. This makes the `isolate` command available system-wide.
+    2.  **Create the Sandbox Module:** Create a new directory `src/sandbox/` containing `mod.rs` and `isolate.rs`.
+    3.  **Write the Isolate Wrapper (`src/sandbox/isolate.rs`):**
+        * Create a struct, e.g., `IsolateSandbox`.
+        * Implement `compile()` and `run()` methods that use Rust's `std::process::Command` to call the `isolate` binary.
+        * Your wrapper must manage the entire lifecycle: creating a temporary sandbox directory with `isolate --init`, securely copying files in, running the command with strict resource limits (`--time`, `--mem`, `--fsize`, `--processes`), capturing `stdout` and `stderr`, and cleaning up the sandbox with `isolate --cleanup`.
+    4.  **Integrate into the Executor (`src/executor.rs`):**
+        * Modify `execute_batch`. Rip out all the logic that calls `get_container`.
+        * Instead, for each test case, it will now call your new `IsolateSandbox::run()` method.
+        * For compiled languages, it will first call `IsolateSandbox::compile()` once, cache the resulting binary in memory (or Redis), and then use that binary for all subsequent `run` calls in the batch.
+* **Implementation Flow:**
+    A worker picks up a batch job for a C++ program with 20 test cases. It calls `IsolateSandbox::compile()`. This function creates a sandbox, runs `g++` inside it, and returns the compiled `main` binary. The worker then loops 20 times. In each loop, it calls `IsolateSandbox::run()`, passing in the compiled binary and one of the test case's `stdin`. Because creating and running an Isolate sandbox is so fast, all 20 test cases can be executed in parallel (using `tokio::spawn` and `join_all`) in a fraction of a second.
+* **Expected Progress:** This is the breakthrough moment. Your 8-second execution time for a 20-test-case batch will plummet to **under 1 second**. You will have successfully built an execution core that is fundamentally faster than Judge0's.
 
-### 1. Integrate Isolate Sandboxes (Primary Execution Engine)
-**Current State (Post-Phase 1):** Reliance on Docker containers, which incur ~100-500ms startup overhead per execution.
+---
+#### **Step 2.2: Implement the "Elastic Reservoir" with a Semaphore**
 
-**Changes Needed:**
-- **Install Isolate:** Clone, build, and install the `isolate` binary system-wide.
-- **Create Sandbox Module:** Create new directory `src/sandbox/` with:
-  - `mod.rs`: Module declaration.
-  - `isolate.rs`: A Rust struct (`IsolateSandbox`) with methods `compile()` and `run()`. This struct will use `std::process::Command` to call the `isolate` binary with appropriate flags (e.g., `--init`, `--run`, `--time`, `--mem`).
-- **Modify Executor:** In `src/executor.rs`, add a feature flag (e.g., `USE_ISOLATE` from `.env`). When enabled, route compilation and execution calls to the new `IsolateSandbox` instead of the Docker-based `container_management` module.
-- **Implement Fallback:** If Isolate fails (e.g., unsupported language, permission error), automatically fall back to the existing Docker system.
-- **Security Hardening:** Configure Isolate with strict resource limits (time, memory, processes) and use `--enable-seccomp` for syscall filtering.
+* **Goal:** To safely manage the concurrency of your new, super-fast Isolate sandboxes, allowing the system to handle massive bursts without crashing.
+* **Why It's a Game-Changer:** This makes your engine robust. It prevents a "thundering herd" of 10,000 requests from overwhelming your server's CPU and process limits, ensuring stability under extreme load. It's the professional way to manage high throughput.
+* **Detailed Changes (What to Do):**
+    1.  **Rename ENV Var:** In your `.env` file, rename `MAX_CONCURRENT_CONTAINERS` to `MAX_CONCURRENT_SANDBOXES`. A value like `500` is a good start.
+    2.  **Initialize Semaphore (`src/setup.rs`):** In `initialize_executor`, ensure your `CodeExecutor` struct's `semaphore` is initialized with this new value: `semaphore: Arc::new(Semaphore::new(max_sandboxes))`.
+    3.  **Enforce the Limit (`src/executor.rs`):** At the very beginning of your `execute_batch` function, acquire a permit: `let _permit = self.semaphore.acquire().await?;`. The permit will be automatically released when the function ends.
+    4.  **Remove All Container Pool Logic:** This is a crucial simplification. You can now **delete the entire `container_pool` field** from the `CodeExecutor` struct. You can also **delete the entire `src/container_management/` directory**. It is now obsolete. The concept of "pooling" is now handled entirely by the semaphore and the millisecond-fast, on-demand creation of Isolate sandboxes.
+* **Implementation Flow:**
+    A burst of 1000 requests hits your API. Your workers pick up the jobs. Each worker's call to `execute_batch` will first wait for the semaphore. The first 500 workers will get a permit instantly and start creating Isolate sandboxes in parallel. The 501st worker will wait asynchronously and harmlessly until one of the first 500 finishes and releases its permit.
+* **Expected Progress:** Your system is now incredibly simple and incredibly scalable on a single node. You have removed a huge amount of complex code (the entire pooling logic) and replaced it with a single, elegant semaphore. The engine can now safely max out your machine's resources to achieve the highest possible throughput without risk of crashing.
 
-**Benefits:**
-- **10x-50x Faster Execution:** Reduces sandbox initialization from ~100ms to **<1ms**.
-- **Higher Density:** Run 1000+ concurrent Isolate sandboxes on a single machine vs. ~100 Docker containers.
-- **Enhanced Security:** Fine-grained control over resource limits and syscall access.
+---
+#### **Step 2.3: Upgrade to a Professional Task Queue (Broccoli)**
 
-**Files to Modify/Create:**
-- **New:** `src/sandbox/mod.rs`
-- **New:** `src/sandbox/isolate.rs`
-- `src/executor.rs` (Major changes to integrate Isolate as primary)
-- `src/compilers/compilers.rs` (Route compilation to Isolate)
-- `.env` (Add `USE_ISOLATE=true`, `ISOLATE_PATH=/usr/local/bin/isolate`)
-
-### 2. Implement Asynchronous (Token-Based) API
-**Current State:** Synchronous API where the HTTP connection is held open until the execution is complete. This is fragile and does not scale.
-
-**Changes Needed:**
-This is a fundamental shift in API design. The new flow is:
-1.  **POST /submissions**:
-    - Client sends a batch of requests (code + array of test cases).
-    - Server **immediately** validates the request.
-    - Generates a unique `token` (UUIDv4).
-    - Serializes the entire job and enqueues it into the task queue.
-    - **Immediately** responds with HTTP `202 Accepted` and a JSON body: `{ "token": "<uuid>", "status": "In Queue" }`.
-    - The HTTP connection closes, freeing the web server to handle the next request.
-2.  **Worker Process**:
-    - Workers pull jobs from the queue.
-    - They process the job (compile once, run all test cases in parallel via Isolate).
-    - They store the final `EvaluationResult` in **Redis** under the key `result:<token>`, with a TTL of e.g., 5 minutes.
-3.  **GET /submissions/<token>**:
-    - The client polls this endpoint to check for the result.
-    - The server checks Redis for `result:<token>`.
-    - If found: Returns the result with HTTP `200 OK`.
-    - If not found: Returns `{ "status": "Processing" }` with HTTP `202 Accepted`.
-
-**Benefits:**
-- **Massive Scalability:** The web server only handles short-lived requests, enabling it to process 10,000+ requests per minute.
-- **Resilience:** Jobs are persisted in the queue and result store. Server crashes or restarts do not cause job loss.
-- **Predictable Performance:** Clients get an immediate acknowledgment and can poll at their own rate.
-- **Industry Standard:** This is how all major code execution APIs (Judge0, AWS Lambda) operate.
-
-**Files to Modify:**
-- `src/controllers/executionControllers.rs` (Complete rewrite of endpoint logic)
-- `src/models/request.rs` (Add `webhook_url` field to request model, optional)
-- `src/models/response.rs` (Add `token` and `status` fields to response model)
-- `src/routes.rs` (Add new `/submissions` and `/submissions/{token}` routes)
-- `src/queue_management/task.rs` (Update task struct to hold entire batch)
-
-### 3. Upgrade to a Robust Task Queue (Broccoli)
-**Current State (Post-Phase 1):** Using Redis lists directly, which lacks features like retries, priorities, and durability.
-
-**Changes Needed:**
-- **Add Dependency:** Add `broccoli = "0.5"` to `Cargo.toml`. Broccoli is a Rust-native, Redis-backed distributed task queue.
-- **Refactor Queue Management:** Replace the direct Redis list operations in `src/queue_management/manager.rs` with Broccoli's client.
-- **Define Jobs:** Define a Broccoli job (e.g., `execute_batch_job`) that takes the serialized batch data and token.
-- **Worker Service:** Refactor the worker startup in `src/setup.rs` to run Broccoli workers that consume the `execute_batch_job` queue.
-- **Retries & DLQ:** Configure Broccoli to automatically retry failed jobs and move permanently failed jobs to a Dead Letter Queue for inspection.
-
-**Benefits:**
-- **Production-Ready:** Built-in support for retries, metrics, and job management.
-- **Performance:** More efficient than manually managing Redis lists.
-- **Reliability:** Guaranteed at-least-once delivery of tasks.
-
-**Files to Modify:**
-- `Cargo.toml` (Add Broccoli dependency)
-- `src/queue_management/manager.rs` (Complete refactor to use Broccoli client)
-- `src/setup.rs` (Initialize Broccoli and start workers)
-- `src/main.rs` (Potentially split into `api` and `worker` binaries)
+* **Goal:** To replace your simple Redis-list-based queue with a production-grade, reliable task queue library.
+* **Why It's a Game-Changer:** Your workers are now extremely fast. The next potential point of failure is the queue itself. A simple Redis list doesn't handle failures, retries, or complex routing. Upgrading to a library like Broccoli makes your system's "nervous system" as robust as its "muscles" (the Isolate workers). This is critical for production reliability.
+* **New Tools Introduced:**
+    * `broccoli`: A Rust-native, distributed task queue library that uses Redis as a backend.
+* **Detailed Changes (What to Do):**
+    1.  **Add Dependency:** Add `broccoli = "0.5"` to your `Cargo.toml`.
+    2.  **Refactor Queue Logic:**
+        * You will remove most of the custom logic from `src/queue_management/manager.rs`.
+        * Instead, in your API controller (`executionControllers.rs`), you will initialize a Broccoli `Client`. When a request comes in, you will simply call `client.enqueue("execution_queue", task).await`.
+        * In your `main.rs`, in the `worker` mode block, you will create a Broccoli `Worker` that consumes from `"execution_queue"`. You will register a function (e.g., `handle_execution_job`) that contains the logic currently in `executor.rs`.
+    3.  **Configure Retries:** Configure the Broccoli worker to automatically retry a job up to 3 times if it fails with a transient error.
+* **Implementation Flow:**
+    A job is enqueued by the API server. A worker picks it up and begins execution. Suddenly, the worker process crashes due to a rare bug. With your old queue, the job might be lost. With Broccoli, the job's state is tracked in Redis. After a timeout, Broccoli sees that the job was never completed and automatically re-enqueues it. Another healthy worker then picks it up and successfully completes it.
+* **Expected Progress:** Your system is now **fault-tolerant**. Jobs are never lost. You have achieved a level of reliability that is essential for a production service. You can now confidently scale your workers across multiple machines, and the Broccoli queue will distribute the work among them seamlessly.
