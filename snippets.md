@@ -2,6 +2,11 @@ Of course. Here are the `curl` commands for Java, Python, C, and C++ for both th
 
 -----
 
+## Clear the Cache 
+```bash
+docker exec -it evalx_redis redis-cli FLUSHALL
+```
+----
 ## GET request for submissions
 ```bash
 curl http://localhost:3000/submissions/
