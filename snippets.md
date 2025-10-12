@@ -22,7 +22,7 @@ curl -X POST http://localhost:3000/execute \
 -d '{
   "language": "java11",
   "version": "11",
-  "code": "import java.util.Scanner;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String name = scanner.nextLine();\n        System.out.println(\"Hello, \" + name);\n    }\n}",
+  "code": "import java.util.Scanner;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String name = scanner.nextLine();\n System.out.println(\"1st print statement\"); \n       System.out.println(\"Hello, \" + name);\n    }\n}",
   "stdin": "World"
 }'
 ```
@@ -198,5 +198,49 @@ curl -X POST http://localhost:3000/execute/batch \
   {
     "stdin": "Batdfgsdfch2"
   }
+]'
+```
+
+-----
+
+## ⚫ Golang (go 1.21)
+
+### /execute
+
+```bash
+curl --location 'http://localhost:3000/execute' \
+--header 'Content-Type: application/json' \
+--data '{
+    "language": "go",
+    "version": "1.21",
+    "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello from Go!\")\n}",
+    "stdin": ""
+}'
+```
+
+### /execute/batch
+
+```bash
+curl --location 'http://localhost:3000/execute/batch' \
+--header 'Content-Type: application/json' \
+--data '[
+    {
+        "language": "go",
+        "version": "1.21",
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"io/ioutil\"\n    \"os\"\n)\n\nfunc main() {\n    input, _ := ioutil.ReadAll(os.Stdin)\n    fmt.Printf(\"Input was: %s\", string(input))\n}",
+        "stdin": "First test case"
+    },
+    {
+        "stdin": "Second test case"
+    },
+    {
+        "stdin": "Third test case"
+    },
+    {
+        "stdin": "Fourth test case"
+    },
+    {
+        "stdin": "Fifth test case"
+    }
 ]'
 ```
