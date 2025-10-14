@@ -69,3 +69,28 @@ curl -X POST http://localhost:3000/execute/batch \
 ]'
 
 ```
+
+---
+
+```
+curl -X POST http://localhost:3000/execute/batch \
+-H "Content-Type: application/json" \
+-d '[
+    {
+        "language": "c",
+        "version": "11",
+        "code": "#include <stdio.h>\n\nint main() {\n    // This is an infinite loop designed to never stop.\n    while (1);\n    printf(\"This will never be printed.\\n\");\n    return 0;\n}",
+        "stdin": "test case 1",
+        "timeout": 1
+    },
+    { "stdin": "test case 2" },
+    { "stdin": "test case 3" },
+    { "stdin": "test case 4" },
+    { "stdin": "test case 5" },
+    { "stdin": "test case 6" },
+    { "stdin": "test case 7" },
+    { "stdin": "test case 8" },
+    { "stdin": "test case 9" },
+    { "stdin": "test case 10" }
+]'
+```
