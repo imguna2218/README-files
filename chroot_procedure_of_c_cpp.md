@@ -4,52 +4,29 @@ Your C and C++ compilers need a minimal environment to run. You must create one 
 
 1.  **Create the Directory:**
     ```bash
-    sudo mkdir -p /opt/evalx/chroots/build-essential
-    ```
-2.  **Copy the Toolchain:** `gcc` and `g++` are complex. They depend on many other files. You must copy these dependencies into the chroot.
-      * A simple (but larger) way:
-        ```bash
-        # Create basic filesystem structure
-        sudo mkdir -p /opt/evalx/chroots/build-essential/{usr,lib,lib64,bin}
-
-        # Copy the compilers
-        sudo cp /usr/bin/gcc /usr/bin/g++ /opt/evalx/chroots/build-essential/usr/bin/
-
-        # !! This is the most critical part !!
-        # Copy the GCC internal libraries and sub-processes (like cc1, cc1plus)
-        sudo cp -a /usr/lib/gcc /opt/evalx/chroots/build-essential/usr/lib/
-
-        # Copy essential headers
-        sudo cp -a /usr/include /opt/evalx/chroots/build-essential/usr/
-
-        # Copy the linker
-        sudo cp /lib64/ld-linux-x86-64.so.2 /opt/evalx/chroots/build-essential/lib64/
-
-        # Copy critical libraries (find them with `ldd /usr/bin/gcc`)
-        # This list may vary slightly, but covers the basics
-        sudo cp /lib/x86_64-linux-gnu/{libc.so.6,libm.so.6,libz.so.1} /opt/evalx/chroots/build-essential/lib/
-        sudo cp /usr/lib/x86_64-linux-gnu/{libstdc++.so.6,libgcc_s.so.1} /opt/evalx/chroots/build-essential/usr/lib/
-        ```
-    This creates a self-contained environment just for your C/C++ compilers.
-
-#### Step 2: Update Your Language Configs
-
-Now, simply tell your C and C++ configs to *use* this new chroot.
-
-  * **File:** `config/languages/c_language/v11.toml`
-
-  * **Change:** Add this line:
-
-    ```toml
-    chroot_path = "/opt/evalx/chroots/build-essential"
-    ```
-
-  * **File:** `config/languages/cpp_language/v11.toml`
-
-  * **Change:** Add this line:
-
-    ```toml
-    chroot_path = "/opt/evalx/chroots/build-essential"
+        # Clean up old attempts first (optional, but good practice)
+    sudo rm -rf /opt/evalx/chroots/base /opt/evalx/chroots/build-essential /opt/evalx/chroots/python3.9 /opt/evalx/chroots/java11 # etc.
+    
+    # Create the new base
+    sudo mkdir -p /opt/evalx/chroots/base/{bin,lib,lib64}
+    
+    # Copy dynamic linker (CRITICAL)
+    sudo cp /lib64/ld-linux-x86-64.so.2 /opt/evalx/chroots/base/lib64/
+    if [ -e /lib/ld-linux-x86-64.so.2 ]; then # Handle systems where it might be in /lib
+      sudo cp /lib/ld-linux-x86-64.so.2 /opt/evalx/chroots/base/lib/
+    fi
+    
+    # Copy core C library (CRITICAL)
+    sudo cp /lib/x86_64-linux-gnu/libc.so.6 /opt/evalx/chroots/base/lib/
+    
+    # Copy essential math library (often needed)
+    sudo cp /lib/x86_64-linux-gnu/libm.so.6 /opt/evalx/chroots/base/lib/
+    
+    # Copy basic shell (often needed implicitly)
+    sudo cp /bin/sh /opt/evalx/chroots/base/bin/
+    
+    # Ensure execute permissions
+    sudo chmod -R +rx /opt/evalx/chroots/base
     ```
 
 #### Step 3: (Optional but Recommended) Simplify Your Code
