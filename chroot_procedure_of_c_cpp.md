@@ -1,36 +1,34 @@
-#### Step 1: Create a Chroot for C/C++
+## The REAL Solution for Future Languages:
 
-Your C and C++ compilers need a minimal environment to run. You must create one on your host machine. This is a one-time setup.
+**For ANY new language, just follow this pattern:**
 
-1.  **Create the Directory:**
-    ```bash
-        # Clean up old attempts first (optional, but good practice)
-    sudo rm -rf /opt/evalx/chroots/base /opt/evalx/chroots/build-essential /opt/evalx/chroots/python3.9 /opt/evalx/chroots/java11 # etc.
-    
-    # Create the new base
-    sudo mkdir -p /opt/evalx/chroots/base/{bin,lib,lib64}
-    
-    # Copy dynamic linker (CRITICAL)
-    sudo cp /lib64/ld-linux-x86-64.so.2 /opt/evalx/chroots/base/lib64/
-    if [ -e /lib/ld-linux-x86-64.so.2 ]; then # Handle systems where it might be in /lib
-      sudo cp /lib/ld-linux-x86-64.so.2 /opt/evalx/chroots/base/lib/
-    fi
-    
-    # Copy core C library (CRITICAL)
-    sudo cp /lib/x86_64-linux-gnu/libc.so.6 /opt/evalx/chroots/base/lib/
-    
-    # Copy essential math library (often needed)
-    sudo cp /lib/x86_64-linux-gnu/libm.so.6 /opt/evalx/chroots/base/lib/
-    
-    # Copy basic shell (often needed implicitly)
-    sudo cp /bin/sh /opt/evalx/chroots/base/bin/
-    
-    # Ensure execute permissions
-    sudo chmod -R +rx /opt/evalx/chroots/base
-    ```
+```bash
+# 1. Copy base chroot
+sudo cp -r /opt/evalx/chroots/base /opt/evalx/chroots/NEW_LANGUAGE
 
-#### Step 3: (Optional but Recommended) Simplify Your Code
+# 2. Copy the main binary
+sudo cp /path/to/language/binary /opt/evalx/chroots/NEW_LANGUAGE/usr/bin/
 
-[cite\_start]You can now **delete the entire `else` block** from `src/sandbox/isolate.rs` [cite: 628-631]. [cite\_start]Your `build_base_command` function becomes simpler and more robust, as it now *only* contains the logic for chroots [cite: 625-628]. This removes the broken code path forever and ensures any new language *must* have a proper chroot.
+# 3. Copy ALL library dependencies
+for lib in $(ldd /path/to/language/binary | grep -o '/[^ ]*' | grep -v '('); do
+    sudo mkdir -p /opt/evalx/chroots/NEW_LANGUAGE$(dirname "$lib")
+    sudo cp "$lib" "/opt/evalx/chroots/NEW_LANGUAGE$lib"
+done
+```
 
-This solution has zero disadvantages. It fixes the hanging compiler, aligns C/C++ with your other working languages, and makes your sandbox code simpler and more secure.
+## Quick Fix for Right Now:
+
+```bash
+# Just fix the paths that exist
+sudo mkdir -p /opt/evalx/chroots/java11/usr/bin
+sudo cp /usr/lib/jvm/java-11-openjdk-amd64/bin/java /opt/evalx/chroots/java11/usr/bin/
+sudo cp /usr/lib/jvm/java-11-openjdk-amd64/bin/javac /opt/evalx/chroots/java11/usr/bin/
+
+# Use python3 instead of python3.9
+sudo mkdir -p /opt/evalx/chroots/python/usr/bin
+sudo cp /usr/bin/python3 /opt/evalx/chroots/python/usr/bin/
+```
+
+Then update your Python config to use `python3` instead of `python3.9`.
+
+**The key insight:** Chroots are about copying existing system files, NOT installing new packages!
