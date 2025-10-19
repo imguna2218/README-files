@@ -6,10 +6,17 @@
     sudo visudo
     ```
 
-2.  **Add the following line to the end of the file.** Scroll all the way to the bottom and add this exact line. Replace `gunasekhar` with your actual username if it's different.
+    --
+
+    ```bash
+    which chown
+    ```
+    with the path obtained .... ex : `/usr/bin/chown`
+
+3.  **Add the following line to the end of the file.** Scroll all the way to the bottom and add this exact line. Replace `gunasekhar` with your actual username if it's different.
 
     ```
-    gunasekhar ALL=(ALL) NOPASSWD: /usr/local/bin/isolate
+    gunasekhar ALL=(ALL) NOPASSWD: /usr/local/bin/isolate, /usr/bin/chown
     ```
 
       * **`gunasekhar`**: The user who gets the permission.
@@ -17,4 +24,4 @@
       * **`NOPASSWD:`**: Do not ask for a password. This is critical for an automated service.
       * **`/usr/local/bin/isolate`**: The *only* command this rule applies to. (Verify this is the correct path to your `isolate` binary by running `which isolate`).
 
-3.  **Save and exit the editor.** In `nano` (the default for `visudo` on many systems), this is `Ctrl+X`, then `Y`, then `Enter`.
+4.  **Save and exit the editor.** In `nano` (the default for `visudo` on many systems), this is `Ctrl+X`, then `Y`, then `Enter`.
