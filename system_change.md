@@ -17,6 +17,7 @@
 
     ```
     gunasekhar ALL=(ALL) NOPASSWD: /usr/local/bin/isolate, /usr/bin/chown
+    gunasekhar ALL=(ALL) NOPASSWD: /home/gunasekhar/evalx/target/release/evalx worker
     ```
 
       * **`gunasekhar`**: The user who gets the permission.
@@ -25,3 +26,7 @@
       * **`/usr/local/bin/isolate`**: The *only* command this rule applies to. (Verify this is the correct path to your `isolate` binary by running `which isolate`).
 
 4.  **Save and exit the editor.** In `nano` (the default for `visudo` on many systems), this is `Ctrl+X`, then `Y`, then `Enter`.
+
+5.  After that
+   ```bash
+        
