@@ -49,6 +49,10 @@ curl -X POST http://localhost:3000/execute/batch \
 
 ## 🐍 Python (3.9)
 
+```bash
+curl http://localhost:3000/submissions/
+```
+
 ### /execute
 
 ```bash
@@ -84,6 +88,10 @@ curl -X POST http://localhost:3000/execute/batch \
 
 ## ⚫ C (gcc 11)
 
+```bash
+curl http://localhost:3000/submissions/
+```
+
 ### /execute
 
 ```bash
@@ -118,6 +126,10 @@ curl -X POST http://localhost:3000/execute/batch \
 -----
 
 ## ➕ C++ (gcc 11)
+
+```bash
+curl http://localhost:3000/submissions/
+```
 
 ### /execute
 
