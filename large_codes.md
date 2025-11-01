@@ -1,4 +1,4 @@
-## Java
+## Java 24
 
 ```bash
 curl http://localhost:3000/submissions/
@@ -10,10 +10,10 @@ curl -X POST http://localhost:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d '[
     {
-        "language": "java11",
-        "version": "11",
-        "code": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void bubbleSort(int[] arr) {\n        int n = arr.length;\n        for (int i = 0; i < n - 1; i++) {\n            for (int j = 0; j < n - i - 1; j++) {\n                if (arr[j] > arr[j + 1]) {\n                    // Swap arr[j] and arr[j+1]\n                    int temp = arr[j];\n                    arr[j] = arr[j + 1];\n                    arr[j + 1] = temp;\n                }\n            }\n        }\n    }\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] input = sc.nextLine().split(\",\");\n        int[] arr = new int[input.length];\n        for (int i = 0; i < input.length; i++) {\n            arr[i] = Integer.parseInt(input[i]);\n        }\n        \n        bubbleSort(arr);\n        System.out.println(Arrays.toString(arr));\n    }\n}",
-        "stdin": "10,9,8,7,6,5,4,3,2,1",
+        "language": "java24",
+        "version": "24",
+        "code": "import java.util.Arrays;\nimport java.util.Scanner;\n\nvoid main() {\n    Scanner sc = new Scanner(System.in);\n    String[] input = sc.nextLine().split(\",\");\n    int[] arr = new int[input.length];\n    for (int i = 0; i < input.length; i++) {\n        arr[i] = Integer.parseInt(input[i]);\n    }\n    \n    bubbleSort(arr);\n    System.out.println(Arrays.toString(arr));\n}\n\nvoid bubbleSort(int[] arr) {\n    int n = arr.length;\n    for (int i = 0; i < n - 1; i++) {\n        for (int j = 0; j < n - i - 1; j++) {\n            if (arr[j] > arr[j + 1]) {\n                // Swap arr[j] and arr[j+1]\n                int temp = arr[j];\n                arr[j] = arr[j + 1];\n                arr[j + 1] = temp;\n            }\n        }\n    }\n}",
+        "stdin": "100,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,99,98,97,96,95,94,93,92,91,90,89,88,87,86,85,84,83,82,81,80,79,78,77,76,75,74,73,72,71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1",
         "timeout": 10
     },
     {
@@ -78,7 +78,7 @@ curl -X POST http://localhost:3000/execute/batch \
 ```
 
 ---
-## C 
+## C 11
 
 ```bash
 curl http://localhost:3000/submissions/
@@ -158,7 +158,7 @@ EOF
 ```
 
 ---
-## Pyhton
+## Pyhton 3.9
 
 ```bash
 curl http://localhost:3000/submissions/
@@ -238,7 +238,7 @@ EOF
 ```
 
 ---
-## CPP
+## CPP 11
 
 ```bash
 curl http://localhost:3000/submissions/
