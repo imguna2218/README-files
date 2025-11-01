@@ -19,7 +19,7 @@ docker exec evalx_redis redis-cli KEYS "result:*" | xargs -r docker exec evalx_r
 curl http://localhost:3000/submissions/
 ```
 
-## ☕ Java (java11)
+## ☕ Java (java24)
 
 ### /execute
 
@@ -27,11 +27,12 @@ curl http://localhost:3000/submissions/
 curl -X POST http://localhost:3000/execute \
 -H "Content-Type: application/json" \
 -d '{
-  "language": "java11",
-  "version": "11",
-  "code": "import java.util.Scanner;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String name = scanner.nextLine();\n System.out.println(\"1st print statement\"); \n       System.out.println(\"Hello, \" + name);\n    }\n}",
-  "stdin": "World"
-}'
+    "language": "java24",
+    "version": "24",
+    "code": "import java.util.Scanner;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String name = scanner.nextLine();\n  System.out.println(\"1st Print Statement !!!! \"); \n      System.out.println(\"Hello, \" + name);\n    }\n}",
+    "stdin": "Batch1"
+  },
+'
 ```
 
 ### /execute/batch
@@ -41,8 +42,8 @@ curl -X POST http://localhost:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d '[
   {
-    "language": "java11",
-    "version": "11",
+    "language": "java24",
+    "version": "24",
     "code": "import java.util.Scanner;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String name = scanner.nextLine();\n        System.out.println(\"Hello, \" + name);\n    }\n}",
     "stdin": "Batch1"
   },
