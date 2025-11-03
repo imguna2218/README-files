@@ -27,8 +27,8 @@ curl http://localhost:3000/submissions/
 curl -X POST http://localhost:3000/execute \
 -H "Content-Type: application/json" \
 -d '{
-    "language": "java24",
-    "version": "24",
+    "language": "java21",
+    "version": "21",
     "code": "import java.util.Scanner;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String name = scanner.nextLine();\n  System.out.println(\"1st Print Statement !!!! \"); \n      System.out.println(\"Hello, \" + name);\n    }\n}",
     "stdin": "Batch1"
   },
