@@ -4,15 +4,10 @@ Of course. Here are the `curl` commands for Java, Python, C, and C++ for both th
 
 ## Clear the Cache 
 ```bash
-# Clears the compilation artifact cache
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
-
-# Clears the single-execution cache
-docker exec evalx_redis redis-cli KEYS "evalx:exec:*" | xargs -r docker exec evalx_redis redis-cli DEL
-
-# Clears completed job results
-docker exec evalx_redis redis-cli KEYS "result:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+---
+
 ----
 ## GET request for submissions
 ```bash
