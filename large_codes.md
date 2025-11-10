@@ -1,3 +1,9 @@
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
+---
+
 ## Java 24
 
 ```bash
@@ -77,6 +83,11 @@ curl -X POST http://localhost:3000/execute/batch \
 
 ```
 
+---
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
 ---
 ## Java 21
 
@@ -158,6 +169,11 @@ curl -X POST http://localhost:3000/execute/batch \
 ```
 
 ---
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
+---
 ## C 11
 
 ```bash
@@ -237,6 +253,11 @@ curl -X POST http://localhost:3000/execute/batch \
 EOF
 ```
 
+---
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
 ---
 ## Pyhton 3.9
 
@@ -318,6 +339,11 @@ EOF
 ```
 
 ---
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
+---
 ## CPP 11
 
 ```bash
@@ -398,6 +424,12 @@ EOF
 
 
 ---
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
+---
+## Infinite Loop Testing 
 
 ```
 curl -X POST http://localhost:3000/execute/batch \
