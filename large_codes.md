@@ -842,6 +842,32 @@ EOF
 ```
 
 
+## Clear cache
+```bash
+docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
+```
+---
+
+## SQLITE 3.43
+
+```bash
+curl http://localhost:3000/submissions/
+```
+```
+curl -X POST http://localhost:3000/execute \
+-H "Content-Type: application/json" \
+-d @- << 'EOF'
+    {
+        "language": "sqlite",
+        "version": "3.43",
+        "code": "PRAGMA foreign_keys = ON;\n\n-- 1. Create Schema\nCREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score INTEGER);\n\n-- 2. Insert Data\nBEGIN TRANSACTION;\nINSERT INTO users (name, score) VALUES ('Alice', 100);\nINSERT INTO users (name, score) VALUES ('Bob', 50);\nINSERT INTO users (name, score) VALUES ('Charlie', 75);\nCOMMIT;\n\n-- 3. Update Logic\nUPDATE users SET score = score + 10 WHERE score < 80;\n\n-- 4. Final Report\n.mode box\nSELECT * FROM users ORDER BY score DESC;",
+        "stdin":"ignored_stdin", 
+        "timeout": 5
+}
+EOF
+```
+
+
 ---
 ## Clear cache
 ```bash
