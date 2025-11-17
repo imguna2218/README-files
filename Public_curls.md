@@ -7,12 +7,12 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## Java 24
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 
 
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d '[
     {
@@ -92,12 +92,12 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## Java 21
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 
 
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d '[
     {
@@ -177,11 +177,11 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## C 11
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -262,11 +262,11 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## Pyhton 3.9
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -347,10 +347,10 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## CPP 11
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -432,11 +432,11 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## GOLANG 1.21
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -517,10 +517,10 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## R 4.3
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -601,10 +601,10 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## Ruby 3.2
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -681,10 +681,10 @@ EOF
 ## TypeScript 5.0
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -765,11 +765,11 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## Swift 5.9
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -851,10 +851,10 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## SQLITE 3.43
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 ```
-curl -X POST http://98.130.53.83:3000/execute \
+curl -X POST http://13.201.58.171:3000/execute \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
     {
@@ -876,10 +876,10 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## PHP 8.2
 
 ```bash
-curl http://98.130.53.83:3000/submissions/
+curl http://13.201.58.171:3000/submissions/
 ```
 ```bash
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d @- << 'EOF'
 [
@@ -960,7 +960,7 @@ docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec
 ## Infinite Loop Testing 
 
 ```
-curl -X POST http://98.130.53.83:3000/execute/batch \
+curl -X POST http://13.201.58.171:3000/execute/batch \
 -H "Content-Type: application/json" \
 -d '[
     {
