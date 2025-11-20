@@ -2,6 +2,11 @@
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 
 ## Java 24
@@ -88,6 +93,11 @@ curl -X POST http://localhost:3000/execute/batch \
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## Java 21
 
@@ -173,6 +183,11 @@ curl -X POST http://localhost:3000/execute/batch \
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## C 11
 
@@ -258,6 +273,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## Pyhton 3.9
 
@@ -343,6 +363,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## CPP 11
 
@@ -428,6 +453,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## GOLANG 1.21
 
@@ -513,6 +543,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## R 4.3
 
@@ -596,6 +631,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 
 ## Ruby 3.2
@@ -674,6 +714,10 @@ curl -X POST http://localhost:3000/execute/batch \
     }
 ]
 EOF
+```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
 ```
 
 ---
@@ -760,6 +804,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 
 ## Swift 5.9
@@ -846,6 +895,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 
 ## SQLITE 3.43
@@ -956,6 +1010,11 @@ EOF
 ```bash
 docker exec evalx_redis redis-cli KEYS "evalx:artifact:*" | xargs -r docker exec evalx_redis redis-cli DEL
 ```
+## or
+```bash
+sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r redis-cli DEL'
+```
+
 ---
 ## Infinite Loop Testing 
 
