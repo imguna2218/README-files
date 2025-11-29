@@ -1,113 +1,162 @@
-# DevOps Lab Environment Documentation
+## Phase 1: The Foundation (Java 21)
 
-**Date:** November 27, 2025
-**System:** Windows 10/11 (64-bit)
-**Java Version:** OpenJDK 21 (LTS)
+**CRITICAL:** The entire lab depends on **OpenJDK 21**. Do not proceed until this is verified.
 
-## 1\. Environment Preparation (The Java Fix)
+### 1.1 Verify Existing Java
 
-**Objective:** Establish a clean Java 21 environment and remove legacy conflicts.
+Open PowerShell or Command Prompt and run:
 
-  * **Conflict:** System originally had Java 1.8 (Eclipse Temurin) taking priority in `%PATH%`.
-  * **Action 1:** Uninstalled "Eclipse Temurin JDK with Hotspot 8u472".
-  * **Action 2:** Verified Java 21 installation path: `C:\Program Files\Java\jdk-21`.
-  * **Action 3:** Configured System Environment Variables:
-      * `JAVA_HOME`: Set to `C:\Program Files\Java\jdk-21`.
-      * `Path`: Removed Java 1.8 entries. Added `C:\Program Files\Java\jdk-21\bin` to the top of the list.
-  * **Verification:**
-      * Command: `java -version`
-      * Result: `java version "21.0.8" 2025-07-15 LTS`
+```powershell
+java -version
+```
 
-## 2\. Directory Structure
+  * **If it says "21.x.x"**: You are safe. Skip to **Phase 2**.
+  * **If it says "1.8", "11", or "command not found"**: You must perform the steps below.
 
-**Base Directory:** `C:\DevOps` (Created to bypass `Program Files` permission issues).
+### 1.2 Install & Configure Java 21
 
-**Contents:**
+1.  **Download:** [Eclipse Adoptium (JDK 21 LTS)](https://adoptium.net/). Select Windows x64.
+2.  **Install:** Run the installer. **Important:** Select "Set JAVA\_HOME variable" during setup.
+3.  **Clean Up Conflicts (Environment Variables):**
+      * Press `Win` key, type `env`, select **"Edit the system environment variables"**.
+      * Click **Environment Variables**.
+      * **System Variables \> Path:** Delete any lines referencing "Oracle", "javapath", or old JDKs (like 1.8).
+      * **System Variables \> Path:** Ensure `C:\Program Files\Java\jdk-21\bin` (or your install path) is at the **TOP** of the list.
+      * **System Variables \> JAVA\_HOME:** Set to `C:\Program Files\Java\jdk-21`.
+4.  **Verify Again:** Close and reopen terminal. Run `java -version`.
 
-1.  `C:\DevOps\jenkins.war` (Executable)
-2.  `C:\DevOps\apache-tomcat-9.0.98` (Extracted Folder)
-3.  `C:\DevOps\sonarqube-10.7.0.96327` (Extracted Folder)
+-----
 
-## 3\. Tool Installation & Configuration
+## Phase 2: The Arsenal (Directory & Downloads)
 
-### A. Jenkins (Automation Server)
+We bypass Windows permissions by using a custom root folder.
 
-  * **Source:** Generic Java WAR (v2.479.1).
-  * **Port Conflict:** Default Port `8080` was occupied (likely Oracle DB). Port `8081` failed binding.
-  * **Resolution:** Moved to Port **9999**.
-  * **Setup:**
-      * Unlocked using initial admin password from console.
-      * Installed "Suggested Plugins".
-      * Created Admin User (`admin`/`admin`).
+### 2.1 Create the Root Directory
 
-### B. Apache Tomcat (Deployment Server)
+Open PowerShell and run:
 
-  * **Source:** Tomcat 9 Core Zip (64-bit Windows).
-  * **Port Conflict:** Default Port `8080` conflicted with Oracle/Jenkins.
-  * **Configuration Change:**
-      * File: `C:\DevOps\apache-tomcat-9.0.98\conf\server.xml`
-      * Action: Changed `Connector port="8080"` to `Connector port="8082"`.
+```powershell
+New-Item -ItemType Directory -Force -Path "C:\DevOps"
+```
 
-### C. SonarQube (Static Analysis)
+### 2.2 Download the Tools
 
-  * **Source:** SonarQube Community Edition (v10.7.0).
-  * **Java 21 Compatibility Issue:** SonarQube failed to start due to `java.lang.UnsupportedOperationException: The Security Manager is deprecated`.
-  * **Configuration Change:**
-      * File: `C:\DevOps\sonarqube-10.7.0.96327\conf\sonar.properties`
-      * Action: Appended the following lines to the end of the file to allow Security Manager:
-        ```properties
-        sonar.web.javaOpts=-Xmx512m -Xms128m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.manager=allow
-        sonar.ce.javaOpts=-Xmx512m -Xms128m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.manager=allow
-        sonar.search.javaOpts=-Xmx512m -Xms512m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.manager=allow
-        ```
-  * **Setup:**
-      * Logged in with default `admin`/`admin`.
-      * Forced password change to `admin123`.
+Download the following files and place them **exactly** as described:
 
-## 4\. Operational Startup Commands
+1.  **Jenkins:**
 
-To bring the lab online, open **three separate** PowerShell (or CMD) windows and execute:
+      * **Download:** [Jenkins Generic Java WAR](https://www.google.com/search?q=https://get.jenkins.io/war-stable/latest/jenkins.war)
+      * **Action:** Copy the `jenkins.war` file directly into `C:\DevOps\`.
+      * *Result:* `C:\DevOps\jenkins.war`
 
-**1. Jenkins (Port 9999)**
+2.  **Apache Tomcat 9:**
+
+      * **Download:** [Tomcat 9 (64-bit Windows Zip)](https://tomcat.apache.org/download-90.cgi)
+      * **Action:** Extract the ZIP contents into `C:\DevOps\`.
+      * *Result:* You should see a folder like `C:\DevOps\apache-tomcat-9.0.xx`.
+
+3.  **SonarQube Community:**
+
+      * **Download:** [SonarQube Community Edition](https://www.sonarsource.com/products/sonarqube/downloads/)
+      * **Action:** Extract the ZIP contents into `C:\DevOps\`.
+      * *Result:* You should see a folder like `C:\DevOps\sonarqube-10.7.x...`.
+
+-----
+
+## Phase 3: Configuration (The "Secret Sauce")
+
+*Note: Default ports 8080 and 8081 are avoided due to common conflicts.*
+
+### 3.1 Configure Tomcat (Port 8082)
+
+1.  Navigate to `C:\DevOps\apache-tomcat-9.0.xx\conf`.
+2.  Open `server.xml` with Notepad.
+3.  Find the line: `<Connector port="8080" protocol="HTTP/1.1"`
+4.  **Change `8080` to `8082`.**
+5.  Save and Close.
+
+### 3.2 Configure SonarQube (Java 21 Fix)
+
+*SonarQube requires a permission override to run on Java 21.*
+
+1.  Navigate to `C:\DevOps\sonarqube-xx.x\conf`.
+2.  Open `sonar.properties` with Notepad.
+3.  Scroll to the very bottom of the file.
+4.  **Paste the following block exactly:**
+    ```properties
+    sonar.web.javaOpts=-Xmx512m -Xms128m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.manager=allow
+    sonar.ce.javaOpts=-Xmx512m -Xms128m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.manager=allow
+    sonar.search.javaOpts=-Xmx512m -Xms512m -XX:+HeapDumpOnOutOfMemoryError -Djava.security.manager=allow
+    ```
+5.  Save and Close.
+
+-----
+
+## Phase 4: The Application (Spring Boot Payload)
+
+We need a valid project to test the pipeline.
+
+1.  Go to [start.spring.io](https://start.spring.io).
+2.  **Settings:**
+      * Project: **Maven**
+      * Language: **Java**
+      * Spring Boot: **3.x.x (Latest Stable)**
+      * Group: `com.example`
+      * Artifact: `SimpleLibrary`
+      * Packaging: **WAR** (CRITICAL\! Do not select Jar).
+      * Java: **21**
+3.  **Dependencies:** Select **Spring Web** and **Spring Boot DevTools**.
+4.  **Generate:** Download and extract the zip to your workspace (e.g., `C:\Users\YourName\IdeaProjects\SimpleLibrary`).
+
+-----
+
+## Phase 5: Launch Sequence (How to Start the Lab)
+
+You must open **Three Separate PowerShell Windows**. Keep them open.
+
+### Terminal 1: Jenkins (Port 9999)
 
 ```powershell
 cd C:\DevOps
 java -jar jenkins.war --httpPort=9999
 ```
 
-*Access:* `http://localhost:9999`
+  * **First Run:** Copy the password from the console.
+  * **URL:** `http://localhost:9999`
+  * **Setup:** Install Suggested Plugins -\> Create User `admin`/`admin`.
 
-**2. Tomcat (Port 8082)**
+### Terminal 2: Tomcat (Port 8082)
+
+*Update the folder name below to match your specific version.*
 
 ```powershell
 cd C:\DevOps\apache-tomcat-9.0.98\bin
 .\startup.bat
 ```
 
-*Access:* `http://localhost:8082`
+  * **URL:** `http://localhost:8082` (You should see the Apache Tomcat landing page).
 
-**3. SonarQube (Port 9000)**
+### Terminal 3: SonarQube (Port 9000)
+
+*Update the folder name below to match your specific version.*
 
 ```powershell
 cd C:\DevOps\sonarqube-10.7.0.96327\bin\windows-x86-64
 .\StartSonar.bat
 ```
 
-*Access:* `http://localhost:9000`
-
-## 5\. Application "Payload" (Spring Boot)
-
-**Project:** SimpleLibrary
-**Location:** `C:\Users\DELL\IdeaProjects\SimpleLibrary`
-**Configuration:**
-
-  * **Source:** start.spring.io
-  * **Build Tool:** Maven
-  * **Language:** Java 21
-  * **Packaging:** **WAR** (Critical for Tomcat deployment)
-  * **Dependencies:** Spring Web, Spring Boot DevTools.
-  * **Status:** Project generated, extracted, and currently open in IntelliJ IDEA.
+  * **Wait Time:** Allow 2-3 minutes for boot.
+  * **URL:** `http://localhost:9000`
+  * **Login:** `admin` / `admin` (Change to `admin123` upon request).
 
 -----
 
-**End of Report.**
+## Phase 6: Emergency Shutdown & Reset
+
+If ports are blocked or processes hang, run this command in a new terminal to kill all Java processes instantly:
+
+```cmd
+taskkill /F /IM java.exe
+```
+
+-----
