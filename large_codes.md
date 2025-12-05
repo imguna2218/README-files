@@ -9,7 +9,7 @@ sudo docker exec redis /bin/sh -c 'redis-cli KEYS "evalx:artifact:*" | xargs -r 
 
 ---
 
-## Java 24
+## Javascript 18
 
 ```bash
 curl http://localhost:3000/submissions/
@@ -19,16 +19,16 @@ curl http://localhost:3000/submissions/
 ```bash
 curl -X POST http://localhost:3000/execute/batch \
 -H "Content-Type: application/json" \
--d '[
-    {
-        "language": "java24",
-        "version": "24",
-        "code": "import java.util.Arrays;\nimport java.util.Scanner;\n\nvoid main() {\n    Scanner sc = new Scanner(System.in);\n    String[] input = sc.nextLine().split(\",\");\n    int[] arr = new int[input.length];\n    for (int i = 0; i < input.length; i++) {\n        arr[i] = Integer.parseInt(input[i]);\n    }\n    \n    bubbleSort(arr);\n    System.out.println(Arrays.toString(arr));\n}\n\nvoid bubbleSort(int[] arr) {\n    int n = arr.length;\n    for (int i = 0; i < n - 1; i++) {\n        for (int j = 0; j < n - i - 1; j++) {\n            if (arr[j] > arr[j + 1]) {\n                // Swap arr[j] and arr[j+1]\n                int temp = arr[j];\n                arr[j] = arr[j + 1];\n                arr[j + 1] = temp;\n            }\n        }\n    }\n}",
-        "stdin": "100,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,99,98,97,96,95,94,93,92,91,90,89,88,87,86,85,84,83,82,81,80,79,78,77,76,75,74,73,72,71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1",
-        "timeout": 10
+-d @- << 'EOF'
+[
+    {"language": "javascript",
+    "version": "18",
+    "code": "const readline = require('readline');\nconst rl = readline.createInterface({\n  input: process.stdin,\n  output: process.stdout,\n  terminal: false\n});\n\nrl.on('line', (input) => {\n  if (!input || input.trim() === '') {\n    console.log('[]');\n    process.exit(0);\n  }\n  \n  const parts = input.split(',');\n  const arr = parts.map(Number);\n  const n = arr.length;\n  \n  if (n > 0) {\n    for (let i = 0; i < n - 1; i++) {\n      for (let j = 0; j < n - i - 1; j++) {\n        if (arr[j] > arr[j + 1]) {\n          const temp = arr[j];\n          arr[j] = arr[j + 1];\n          arr[j + 1] = temp;\n        }\n      }\n    }\n  }\n  \n  console.log('[' + arr.join(', ') + ']');\n  process.exit(0);\n});",
+    "stdin": "100,99,98,97,96,95,94,93,92,91,90,89,88,87,86,85,84,83,82,81,80,79,78,77,76,75,74,73,72,71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1",
+    "timeout": 10
     },
     {
-        "stdin": "100,99,98,97,96,95,94,93,92,91,90,89,88,87,86,85,84,83,82,81,80,79,78,77,76,75,74,73,72,71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1"
+        "stdin": "50,12,1,99,4,33,76,100,2,5,8,9,10,44,22,11,66,77,88,33,21,43,65,87,98,12,34,56,78,90,1,3,5,7,9,2,4,6,8,10\n"
     },
     {
         "stdin": "50,49,48,47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1"
@@ -84,8 +84,8 @@ curl -X POST http://localhost:3000/execute/batch \
     {
         "stdin": "0,100,-50,25,-75"
     }
-]'
-
+]
+EOF
 ```
 
 ---
