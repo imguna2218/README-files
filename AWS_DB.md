@@ -235,3 +235,159 @@ async function handleSignup(e) {
 
 **Next Step:**
 Implement these files. Once you can log in via your website on `localhost:3000`, verify that you can see the new item in the AWS DynamoDB Console under the "Explore items" tab.
+
+
+
+---
+
+**2. The "Perfect" Schema Strategy**
+In DynamoDB, you do **not** create a "Schema file" like in SQL. You do not define columns like `name`, `credits`, `address` upfront.
+**You only define the PRIMARY KEY in the AWS Console.** The rest of the data (the schema) is defined **in your JSON code** when you save the item.
+
+Since you need to support **Login** (Website) and **Billing** (Worker) efficiently, use this **Two-Table Design**. It is simple, decoupled, and highly scalable.
+
+### Table 1: `Users`
+
+* **Purpose:** Handles Login, Signup, and Dashboard display.
+* **Created via:** AWS Console.
+* **Partition Key (PK):** `email` (String)
+* **Sort Key:** *(None)*
+
+**The Data Structure (What your Code saves):**
+
+```json
+{
+  "email": "gunasekhar@example.com",  // (Partition Key)
+  "password": "$2a$10$hashedpassword...", // Bcrypt Hash
+  "api_token": "dfc3a365-6b0f...",    // The key they use for the API
+  "created_at": "2025-12-20T10:00:00Z",
+  "stripe_customer_id": "cus_987654"  // (Future use for payments)
+}
+
+```
+
+### Table 2: `UserTokens`
+
+* **Purpose:** Handles the Billing/Counting. The Worker updates this blindly using the token.
+* **Created via:** AWS Console.
+* **Partition Key (PK):** `token` (String)
+* **Sort Key:** *(None)*
+
+**The Data Structure (What your Code saves):**
+
+```json
+{
+  "token": "dfc3a365-6b0f...",        // (Partition Key) matches Users.api_token
+  "owner_email": "gunasekhar@example.com", // Reference to owner
+  "usage_count": 42,                  // The Atomic Counter (Worker updates this)
+  "plan_type": "pro"                  // "free" or "pro"
+}
+
+```
+
+---
+
+**3. Step-by-Step Implementation**
+
+Do this **right now** in your AWS Console.
+
+#### Step A: Create the `Users` Table
+
+1. Go to **DynamoDB** -> **Tables** -> **Create table**.
+2. **Table name:** `Users`
+3. **Partition key:** `email` (Type: **String**).
+4. **Table settings:** Select **Customize settings**.
+5. **Read/Write capacity settings:** Select **On-demand** (Crucial for $0 cost).
+6. Click **Create table**.
+
+#### Step B: Create the `UserTokens` Table
+
+1. Go to **DynamoDB** -> **Tables** -> **Create table**.
+2. **Table name:** `UserTokens`
+3. **Partition key:** `token` (Type: **String**).
+4. **Table settings:** Select **Customize settings**.
+5. **Capacity mode:** Select **On-demand**.
+6. Click **Create table**.
+
+---
+
+**4. How to "Implement" the Schema (The Code)**
+
+You asked if you create the schema "through a file." **No.** You enforce it in your code.
+Here is the updated **Signup Code** (`pages/api/auth/signup.js`) that populates **BOTH** tables transactionally when a user registers.
+
+This ensures that as soon as they sign up, they have a User account AND a Token ready for counting.
+
+**File:** `pages/api/auth/signup.js`
+
+```javascript
+import { db } from "../../../lib/dynamo";
+import { TransactWriteCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).end();
+
+  const { email, password } = req.body;
+
+  try {
+    // 1. Check if user exists (prevent duplicates)
+    const check = await db.send(new GetCommand({
+      TableName: "Users",
+      Key: { email }
+    }));
+    if (check.Item) return res.status(400).json({ error: "User exists" });
+
+    // 2. Prepare Data
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newToken = uuidv4();
+    const now = new Date().toISOString();
+
+    // 3. Save to BOTH tables at once (Transaction)
+    // This guarantees you never have a User without a Token.
+    await db.send(new TransactWriteCommand({
+      TransactItems: [
+        {
+          Put: {
+            TableName: "Users",
+            Item: {
+              email: email,             // PK
+              password: hashedPassword,
+              api_token: newToken,
+              created_at: now
+            }
+          }
+        },
+        {
+          Put: {
+            TableName: "UserTokens",
+            Item: {
+              token: newToken,          // PK
+              owner_email: email,
+              usage_count: 0,           // Start at 0
+              plan_type: "free",
+              created_at: now
+            }
+          }
+        }
+      ]
+    }));
+
+    return res.status(201).json({ message: "User created", token: newToken });
+
+  } catch (error) {
+    console.error("Signup Error:", error);
+    return res.status(500).json({ error: "Signup failed" });
+  }
+}
+
+```
+
+### Summary Check
+
+1. **Cost:** You are using "On-demand" DynamoDB. Usage is 0. Cost is $0.
+2. **Schema:** You created 2 tables in AWS Console (`Users`, `UserTokens`) defining only the Keys.
+3. **Logic:** Your Signup code now fills both tables. Your Billing Worker (from previous chat) updates the `usage_count` in `UserTokens`.
+
+Go create the tables in the console. Then paste this code.
