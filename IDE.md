@@ -1,146 +1,144 @@
-This is the **War Room Plan**.
+Here is the **Master Plan** for your "Zero Cost" Microservices Cloud IDE.
 
-You asked for **3 Parallel Lanes**, **Equal Suffering**, and a **Ruthless Timeline**.
-You also chose **Ubuntu 22.04 Dedicated VM** as your battleground. This is excellent. It is the native home of Firecracker.
+### **1. The "Caching" Verdict (Acceptable for MVP)**
 
----
+You are right. For Day 1 (MVP), **ignore the cache**.
 
-### **The Architecture: "The Hydra"**
+* User opens project -> System unzips code -> System runs `npm install`.
+* It might take 30-60 seconds. **This is acceptable for a student project.**
+* *Optimization Strategy:* We will add the "Shared Volume" in Week 4 only if it is too slow.
 
-Before assigning roles, everyone must agree on this picture.
+### **2. The Development Workflow (How 3 Friends Work)**
 
-* **The Head (Frontend):** A Next.js Dashboard + The "WebContainer" IDE (Runs in Browser).
-* **The Body (Backend):** A Node.js API that manages Users, Projects, and Storage.
-* **The Legs (Infrastructure):** A Firecracker Cluster (Ignite) + Traefik Gateway.
+You asked: *"If I develop in my dual boot, will my friends be able to run the code?"*
 
----
+**The Problem:** Your friends (if they are on Windows or weak VMs) **CANNOT** run Firecracker/Ignite. It requires bare-metal Linux (your Dual Boot).
 
-### **Part 1: The Role Split (Equal Suffering)**
+**The Solution: "The Mock & Remote Strategy"**
 
-We split the team into **Infrastructure**, **Backend Logic**, and **Frontend Experience**.
+1. **Person A (You - Infra):** You are the **Server**. You run the Firecracker VMs on your laptop.
+2. **Person B (Backend):** Developing the API. He points his code to **YOUR** laptop (via **Tailscale** or **Ngrok**) to start VMs. Or, he uses a "Mock" function that pretends to start a VM.
+3. **Person C (Frontend):** Developing the UI. He points his Dashboard to Person B's API.
 
-#### **Person A: The System Architect (Infrastructure)**
+**Crucial Rule:** You must agree on **Constants**.
 
-* **The "Suffering":** You are fighting the Linux Kernel. You must make Firecracker networking talk to the outside world.
-* **Core Responsibility:** The `ignite` Cluster & Traefik Gateway.
-* **Specific Tasks:**
-1. **Host Setup:** Configure the Ubuntu VM for KVM virtualization (checking `/dev/kvm`).
-2. **Ignite Installation:** Manually install `ignite`, `containerd`, and CNI plugins (networking).
-3. **Base Image Creation:** Build a Docker image containing `OpenVSCode Server` + `Node/Python`, then import it into Ignite.
-4. **Traefik Routing:** Configure Traefik to route `*.localhost` traffic to the dynamic IPs of the Firecracker VMs.
-5. **The "Kill Switch":** Write a script to kill VMs that have been idle for 30 minutes.
-
-
-
-#### **Person B: The Backend Lead (The Brain)**
-
-* **The "Suffering":** You are fighting State and Storage. You must ensure files don't disappear when the VM dies.
-* **Core Responsibility:** The API (Node/Express), Database (Supabase), and File Sync.
-* **Specific Tasks:**
-1. **Auth & DB:** Design the Supabase Schema (`Users`, `Projects`, `VM_Status`).
-2. **The "Orchestrator" API:** Write the Node.js code that calls Person A's Ignite commands (`exec('ignite run...')`).
-3. **Storage Sync (The Hardest Part):**
-* *On Boot:* Download Zip from Supabase -> Inject into VM.
-* *On Close:* SSH into VM -> Zip folder -> Upload to Supabase -> Destroy VM.
-
-
-4. **WebSocket Status:** Build the socket connection to tell the Frontend "VM is Ready."
-
-
-
-#### **Person C: The Frontend Architect (The Face)**
-
-* **The "Suffering":** You are fighting the Browser. You must build an IDE that looks real but runs in Chrome.
-* **Core Responsibility:** The Dashboard, WebContainer IDE integration, and User Experience.
-* **Specific Tasks:**
-1. **The "Fake" IDE:** Fork and customize `Sunny-117/webcontainer-ide`. Connect it to Supabase Storage to load files.
-2. **The Dashboard:** Build the Project List, Login Page, and "New Project" Wizard.
-3. **The "Router" Logic:**
-* If Project = React -> Load WebContainer Component.
-* If Project = Java -> Show "Booting Server..." Loader -> Redirect to Person A's Traefik URL.
-
-
-4. **Terminal Integration:** Integrate `xterm.js` to look exactly like VS Code's terminal.
-
-
+* Create a file `shared-config.js` in your git repo.
+* `const REACT_IMAGE_NAME = "vessel/react-template:v1";`
+* `const TRAEFIK_DOMAIN = ".localhost";`
+* Everyone uses these variables. If you change the image name, everyone updates.
 
 ---
 
-### **Part 2: The Timeline (30 Days)**
+### **3. The Three Roles (Equal Suffering)**
 
-You work in **Parallel** phases. Do not wait for each other.
+Here is the exact division. Copy-paste this to your friends.
 
-#### **Phase 1: The Setup & Hello World (Days 1-3)**
+#### **Role 1: The Infrastructure Architect (Person A - YOU)**
 
-* **Goal:** Everyone proves their tech stack works in isolation.
-* **Person A:** Get **ONE** Firecracker VM running on Ubuntu and SSH into it.
-* **Person B:** Get Supabase connected and write a script to Upload/Download a Zip file.
-* **Person C:** Clone `webcontainer-ide` and run it locally. Verify `npm install` works inside the browser.
+* **The Mission:** "I control the Metal."
+* **The Suffering:** You fight the Linux Kernel, Networking, and Dockerfiles. If the VM doesn't boot, it's your fault.
+* **Tech Stack:** Ubuntu 22.04, Ignite (Firecracker), Docker, Traefik, Bash.
+* **Key Deliverables:**
+1. **The Base Image:** A Dockerfile that installs `Node.js`, `Git`, and `OpenVSCode Server`. Build it as `vessel/react-base`.
+2. **The Ignite Wrapper:** A standalone Node.js script (`vm-manager.js`) that acts as a tool:
+* `node vm-manager.js start <project-id>` -> Boots VM, returns IP.
+* `node vm-manager.js stop <project-id>` -> Kills VM.
 
-#### **Phase 2: The Builders (Days 4-15)**
 
-* **Goal:** Build the core components.
-* **Person A:** Build the custom `ignite-vscode` image. Set up Traefik so `test.localhost` routes to a manually started VM.
-* **Person B:** Build the API endpoints: `/create-project`, `/start-vm`. (Mock the VM creation part for now).
-* **Person C:** Build the Dashboard. Make the WebContainer IDE load files from a URL instead of hardcoded strings.
-
-#### **Phase 3: The Integration (Days 16-25)**
-
-* **Goal:** Connect the wires. **(This is where conflicts happen).**
-* **Dependency:** Person B needs Person A's `ignite` commands to finish the API.
-* **Dependency:** Person C needs Person B's API to know *where* to redirect the user.
-* **Action:**
-* B connects API to A's Ignite CLI.
-* C connects Dashboard to B's API.
-* **Test:** Click "Open Project" -> API spins VM -> Traefik routes -> Browser opens.
+3. **The Gateway:** A `docker-compose.yml` file running **Traefik**. It must accept traffic on `*.localhost` and route it to the Firecracker VM IPs.
 
 
 
-#### **Phase 4: Optimization & "Reaper" (Days 26-30)**
+#### **Role 2: The Backend Orchestrator (Person B)**
 
-* **Goal:** Handle the "Closing" flow.
-* **Person A & B:** Implement the logic to save files and kill the VM when the user clicks "Exit".
+* **The Mission:** "I control the Logic."
+* **The Suffering:** You fight the State. What if the user closes the tab? What if the zip file is corrupt? You handle the messy "Business Logic."
+* **Tech Stack:** Node.js (Express), Supabase (Auth, DB, Storage), `adm-zip` (for zipping).
+* **Key Deliverables:**
+1. **Storage Logic:**
+* `downloadProject(projectId)`: Pulls zip from Supabase -> Unzips to `/tmp/projects/{id}`.
+* `saveProject(projectId)`: Zips `/tmp/projects/{id}` -> Uploads to Supabase.
 
----
 
-### **Part 3: The Environment Setup (Ubuntu 22.04)**
+2. **The API:**
+* `POST /project/open`: Auth user -> Check DB -> Trigger Role 1's Start Script -> Return URL.
 
-**WARNING:** Firecracker requires **KVM Virtualization**.
-If you are running Ubuntu inside VMware/VirtualBox, you MUST enable "Nested Virtualization" in the VM settings.
 
-**The "God Script" for Person A (Run this on the Ubuntu VM):**
-This installs Ignite (The Firecracker Manager) and dependencies.
+3. **Database Design:**
+* Table `projects`: `id`, `user_id`, `storage_path`, `template_type`.
+* Table `active_sessions`: `project_id`, `container_ip`, `started_at`.
 
-```bash
-# 1. Check if your CPU supports virtualization
-egrep -c '(vmx|svm)' /proc/cpuinfo
-# If output is 0, STOP. You cannot use Firecracker. Enable VT-x in BIOS/VM settings.
 
-# 2. Install Dependencies (Go, CNI plugins, Containerd)
-sudo apt-get update && sudo apt-get install -y dmsetup openssh-client git binutils containerd
 
-# 3. Install CNI Plugins (Networking)
-export CNI_VERSION=v1.1.1
-sudo mkdir -p /opt/cni/bin
-curl -sSL "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" | sudo tar -xz -C /opt/cni/bin
 
-# 4. Install Ignite (The Firecracker Manager)
-export VERSION=v0.10.0
-curl -fLo ignite https://github.com/weaveworks/ignite/releases/download/${VERSION}/ignite-amd64
-chmod +x ignite
-sudo mv ignite /usr/local/bin
 
-# 5. Verify it works
-sudo ignite version
+#### **Role 3: The Frontend & Experience (Person C)**
 
-```
+* **The Mission:** "I control the User."
+* **The Suffering:** You fight the Browser. You must make the user *feel* like the system is instant, even when it takes 10 seconds to boot.
+* **Tech Stack:** Next.js (React), Tailwind CSS, Supabase Auth UI, Framer Motion (for loaders).
+* **Key Deliverables:**
+1. **Authentication:** Fully working Login/Signup using Supabase.
+2. **The Dashboard:** A grid view of "My Projects" and a "Create New" wizard (Select React/Node -> Enter Name).
+3. **The Loading Screen:** This is critical. When User clicks "Open", show a "Terminal-style" log:
+* *Initializing Container... Done*
+* *Mounting Files... Done*
+* *Starting VS Code... Ready!*
+
+
+4. **The Editor Page:** An `iframe` that points to `http://{project-id}.localhost`.
+
+
 
 ---
 
-### **Summary Checklist for Day 1**
+### **4. The Perfect Parallel Timeline (30 Days)**
 
-1. **Person A:** Run the script above. If `ignite version` fails, debug KVM.
-2. **Person B:** Create a Supabase project. Get the API Keys.
-3. **Person C:** `git clone https://github.com/Sunny-117/webcontainer-ide` and `npm run dev`.
+**Phase 1: Isolation (Day 1 - 7)**
 
-**Go. Parallel execution starts now.**
+* **Goal:** Everyone works ALONE. No integration yet.
+* **Person A:** Gets 1 Firecracker VM running manually. Can visit `localhost:3000` to see VS Code.
+* **Person B:** Can run a script `node test-storage.js` that downloads a zip from Supabase and unzips it.
+* **Person C:** Can log in via Supabase and see a fake list of projects.
+
+**Phase 2: The Handshake (Day 8 - 14)**
+
+* **Goal:** Connect A to B.
+* **Person B** updates their API to call Person A's `vm-manager.js` script (instead of logging "Fake Start").
+* **Person A** ensures Traefik is running so B's API can verify the URL is reachable.
+* **Person C** connects the "Create Project" button to Person B's API (even if it just returns a success message for now).
+
+**Phase 3: The Full Loop (Day 15 - 21)**
+
+* **Goal:** A User can open a project.
+* **Integration:**
+1. Person C clicks "Open".
+2. Person B downloads code & calls A.
+3. Person A boots VM.
+4. Person C redirects browser to `project.localhost`.
+
+
+* **Bug Fixing:** It will fail. Permissions will be wrong. Networking will break. Fix it.
+
+**Phase 4: Persistence & Polish (Day 22 - 30)**
+
+* **Goal:** Saving work.
+* **Person B:** Adds the `saveProject` logic when the API receives a "Stop" signal.
+* **Person A:** Adds a script to detect "Zombie VMs" (running > 1 hour) and kill them.
+* **Person C:** Makes the UI look beautiful.
+
+---
+
+### **5. Immediate Action Plan (Right Now)**
+
+1. **Create 1 GitHub Repository:** `team/vessel-cloud-ide`.
+2. **Create 3 Folders:** `/infra`, `/backend`, `/frontend`.
+3. **Person A (You):**
+* Boot your Ubuntu Dual Boot.
+* Install **Ignite** and **Traefik**.
+* Run: `ignite run weaveworks/ignite-ubuntu --name test-vm --cpus 2 --memory 1GB --ssh`.
+* *Success Check:* Can you SSH into it?
+
+
+
+**Are you ready to execute Phase 1?**
