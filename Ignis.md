@@ -3,6 +3,17 @@
 ## GOAL
 Provide an AI-powered cloud development environment where users can create, edit, and manage projects of any stack in isolated VMs, with an integrated AI assistant that generates and modifies code based on natural language instructions.
 
+## PROBLEM & SOLUTION
+**The Problem:**  
+Existing cloud IDEs like StackBlitz are limited to frontend frameworks and run entirely in the browser, making them unsuitable for backend development (Java, Python, Node.js) or running full-stack applications. Users often need to set up local environments, deal with dependency hell, and cannot leverage AI assistance deeply integrated into their workflow.
+
+**What IgnisOps Solves:**  
+- **Full-Stack Support**: Run Java, Python, Node.js – the "big three" – in isolated microVMs.  
+- **AI-Native Experience**: Built-in AI agent (Planner → Coder → Verifier) that understands your codebase and performs file operations, not just chat.  
+- **Ephemeral yet Persistent**: VMs are destroyed on inactivity, but your code is automatically saved and restored.  
+- **No Port Hassles**: Each project gets a unique subdomain (`user-{id}-project-{x}.localhost`) with automatic port mapping.  
+- **VS Code in the Browser**: Full IDE experience with a custom AI extension.
+
 ## STACK
 - **Frontend**: Next.js (latest)
 - **Backend Services**: Node.js (latest)
@@ -39,9 +50,8 @@ Microservices architecture with the following core components:
 └── supabase/
     – Stores boilerplate zip files (per stack) and user project archives
     – Maintains project metadata, user data, and session info
-
 ```
-## Key Notes : 
+## KEY NOTES
 - **Isolation**: Each project runs in its own Firecracker microVM for strong isolation and resource control.
 - **AI Integration**: AI assistance is provided via a dedicated agent service and a VS Code extension; users interact with AI through chat or inline prompts.
 - **Project Persistence**: On VM shutdown (e.g., inactivity timeout), the project files are cleaned (node_modules, caches removed), zipped, and stored in Supabase with a project ID. The frontend fetches this list to let users resume projects.
