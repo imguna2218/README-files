@@ -33,9 +33,8 @@ Microservices architecture with the following core components:
 │
 ├── vessel-frontend/
 │   – Next.js web application (similar to StackBlitz)
-│   – Project dashboard, code editor (VS Code in browser), terminal
-│   – AI chat interface, project templates, and project listing
-│   – Communicates with backend via REST/WebSockets
+│   – Lists the users projects, Deploying Feasibility, Ability to choose the required Template for a Fresh start.
+|   – Communicates with backend via REST/WebSockets
 │
 └── supabase/
     – Stores boilerplate zip files (per stack) and user project archives
